@@ -1,0 +1,22 @@
+Applications Memory Usage (in Kilobytes):
+Uptime: 22175928 Realtime: 241099913
+
+** MEMINFO in pid 19210 [com.chunting.purecourse] **
+                   Pss  Private  Private  SwapPss      Rss     Heap     Heap     Heap
+                 Total    Dirty    Clean    Dirty    Total     Size    Alloc     Free
+                ------   ------   ------   ------   ------   ------   ------   ------
+  Native Heap    12609    12552       24       13    13372    21720    20931      788
+  Dalvik Heap    12357    12152      124      291    12928    12761     6381     6380
+ Dalvik Other     3101     2428        8       13     4692                           
+        Stack      792      792        0        0      796                           
+       Ashmem      158        0        0        0      320                           
+    Other dev       28        4       24        0      288                           
+     .so mmap     8854      404     3768       26    49936                           
+    .jar mmap     3396        0     1624        0    23104                           
+    .apk mmap      421        0      112        0     6836                           
+    .ttf mmap      500        0      420        0      612                           
+    .dex mmap    22825        4    22816        0    22888                           
+    .oat mmap     2887        0     1088        0    26440                           
+    .art mmap     1502     1156       48       78    11428                           
+   Other mmap     2547       20      972        0     6340                           
+    GL mtrack     4960     4960        0        0     4960                           

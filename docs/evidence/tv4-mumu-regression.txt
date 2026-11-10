@@ -1,0 +1,19 @@
+=== devices ===
+List of devices attached
+emulator-5554          device product:a52xq model:SM_A5260 device:a52xq transport_id:1
+
+=== install tv4 x86_64 ===
+Performing Streamed Install
+Success: streamed 12486334 bytes
+Success
+version:     versionName=1.0.0-tv4
+
+########## A 收藏页 ##########
+########## B 设置页（顶部） ##########
+########## C 设置页按 6 次 DOWN 后（滚动跟随焦点） ##########
+########## D 详情页 ##########
+=== files ===
+-rw-r--r-- 1 Jojotj 197121 172982 Nov  5 16:52 docs/tv4-10-mumu-fav.png
+-rw-r--r-- 1 Jojotj 197121 217437 Nov  5 16:52 docs/tv4-11-mumu-settings-top.png
+-rw-r--r-- 1 Jojotj 197121 194120 Nov  5 16:52 docs/tv4-12-mumu-settings-scrolled.png
+-rw-r--r-- 1 Jojotj 197121 320485 Nov  5 16:52 docs/tv4-13-mumu-detail.png

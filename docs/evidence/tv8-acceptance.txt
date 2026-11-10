@@ -1,0 +1,119 @@
+================================================================
+课程库 1.0.0-tv8 验收记录
+日期：2026-11-06 21:30 ~ 22:00
+环境：MuMu emulator-5554（x86_64）；TCL 电视仍为 tv7（未推送）
+================================================================
+
+0. 本轮起因
+----------------------------------------------------------------
+  用户确认：两台电视都按 v7a 交付，不要通用包；并要求「自己看还有什么要改的」。
+  随后用户报告两个实际使用中的问题。本轮共修 9 项，其中 2 项是用户报的硬伤。
+
+----------------------------------------------------------------
+1. 用户报告的问题
+----------------------------------------------------------------
+  1.1 设置页按到最下面的「关于」，内容不显示、光标也不见了
+      根因（两层）：
+        a. 滚动只保证「分组标题行」可见：
+             listState.ensureIndexVisible(idx - 1)
+           「关于」是最后分组的唯一一行，滚到组标题后这一行被留在屏幕外。
+        b. ensureIndexVisible 用 `visible.any { it.index == index }` 判断可见，
+           而 LazyColumn 的 visibleItemsInfo 包含「只露 1px」的 item，
+           所以即使滚到了，也认为可见、不再滚 —— 最后一行永远只露半截。
+      修复：
+        - SettingsPage：先保证焦点行可见，再把组标题带进视野；底部 padding 20→40。
+        - TvWidgets.ensureIndexVisible（列表 / 网格两版）：改成「整行都在
+          viewportStart~End 之间」才算可见；不可见时直接 scrollToItem(index)
+          （最后一项由 LazyColumn 自动 clamp 到底部）。
+      实测：tv8-settings-bottom3.png
+        「关于」标题 + 「课程播放器 v1.0.0-tv8」+ 「本机运行 · 目录与视频全部来自
+        SMB 共享」+ 右侧「已是最新」全部完整可见，焦点框完整包住该行。
+      过程留痕（不隐藏试错）：前两版分别只露半行、仍半行，第三版才修好；
+        对应截图 tv8-settings-bottom.png / bottom2.png / bottom3.png。
+
+  1.2 输入框里左右键不能移动光标，光标在前时删不掉后面的字
+      根因（两层）：
+        a. MainActivity.dispatchKeyEvent 里：
+             val handled = state.handleKeyDown(code)
+             if (!handled && isBack) { finish(); return true }
+             return true          ← 无条件吞掉
+           编辑态 handleKeyDown 本来是 return false（放行给输入框），
+           但外层仍然 return true，事件根本没到 BasicTextField。
+        b. 即使放行，TV 输入法（搜狗）也不处理硬件方向键，光标只能停在末尾。
+      修复：
+        - dispatchKeyEvent：未处理的事件 `return super.dispatchKeyEvent(event)`
+          （DOWN / UP 都改），返回键仍走 finish()。
+        - AddSourcePage：输入框改用 TextFieldValue，并在 onPreviewKeyEvent 里
+          自己接管 Key.DirectionLeft / DirectionRight，直接改 selection；
+          外部改写（点右侧快捷位置填表）时把光标放到末尾。
+      实测：tv8-edit-before.png → tv8-edit-forwarddel.png
+        进「共享/路径」编辑态，LEFT×20 后按 FORWARD_DEL：
+        文本由「于斯课堂/02 乐理课程（13门课）」变为「斯课堂/02 乐理课程（13门课）」。
+        ⇒ 光标左移生效、光标后的字符可删，用户报的场景成立。
+      如实说明：MuMu 没有弹软键盘（硬件键盘模式），本轮验证的是 Compose 层
+        对整个按键链路的处理；电视搜狗 IME 下的表现需 tv8 真机复验。
+
+----------------------------------------------------------------
+2. 自查修掉的问题
+----------------------------------------------------------------
+  2.1 冷启动有一张卡片莫名高亮
+      现象：Hero 显示「中级(3918)」，但第 6 张卡（梁慧娜-四）被描边。
+      根因：loadRealCatalog 里 `if (sel >= courses.size) sel = 0`，而 courses[0]
+            是扫描顺序的第一门，不是 Hero 用的 recentIdx()。
+      修复：扫完数据后 `sel = recentIdx()`（空列表才 0）。
+      实测：tv8-mumu-shelf.png，Hero 与高亮是同一条（中级），异常描边消失。
+      同时推翻我上一轮的误判：tv7 阶段把那张卡的「选中态」当成了「焦点落错」。
+
+  2.2 设置项不持久化
+      现象：关掉「自动下一节」后冷启动又变回开。
+      修复：新增 data/SettingsStore.kt（SharedPreferences），AppState 构造时读回，
+            toggleBool / adjustClose(save=true) 时落盘，覆盖 9 项：
+            contPlay / autoNext / memory / hwDec / seekStep / speed / subFont /
+            subEdge / sortMode。
+      实测：tv8-set-off.png（关）→ force-stop 重启 → tv8-set-after-restart.png
+            「自动下一节」仍为关。
+
+  2.3 播放页返回键落点与片尾回退不一致
+      现象：从书架 Hero 进播放，按返回却落到详情页（片尾回退已改成回来源页）。
+      修复：KeyRouter 的 Page.Player 分支改用 playerFrom，与 leavePlayerAfterEnd 同逻辑。
+      实测：台架 --es page player 进播放，BACK 后截图 1422175 B（书架尺寸），
+            确认回到书架而不是详情页（tv8-back2.png）。
+
+  2.4 次要文字太暗
+      书架统计行 14f Dim2 → 15f Dim；课程卡「已看 X 节 / 共 Y 节」13f Dim2 → 14f Dim；
+      收藏页「N 个节点 / N 项」Dim2 → Dim。
+
+  2.5 详情页主按钮与书架不一致
+      「继续播放」原来是橙色渐变，书架 Hero 是白色实底。统一成白色实底 + 深字。
+
+  2.6「硬件解码」文案误导
+      原来写「优先 GPU 解码」，实际内核固定硬解、开关不切软解。
+      改为「当前固定开启（关闭本项不会切软解）」。
+
+  2.7 收藏页列表底部留白 24 → 40（4K 下焦点不贴提示条）。
+
+  2.8 gradle 的 isUniversalApk 回退 false（用户只要单 ABI），
+      并删除上一轮生成的 dist/CourseTV-tv7-universal.apk。
+
+----------------------------------------------------------------
+3. 交付包
+----------------------------------------------------------------
+  dist/课程库-1.0-TV-tv8(装这个).apk       12505408 B  armeabi-v7a（电视用）
+  dist/PureCourse-1.0.0-tv8-armeabi-v7a.apk 12505408 B
+  dist/PureCourse-1.0.0-tv8-arm64-v8a.apk   12505722 B
+  dist/PureCourse-1.0.0-tv8-x86_64.apk      12505950 B（MuMu 用）
+  MD5（中文交付包）：8400a090d75eff7346f7648155b1b9ce
+  4 个包与 app/build/outputs 逐字节一致；编译后无 .kt 改动（源码产物同源）。
+  aapt2：versionCode=8 / 1.0.0-tv8 / minSdk=21 / targetSdk=34 /
+    com.chunting.purecourse / native-code armeabi-v7a。
+  apksigner：Verifies / v1=true / v2=true / 1 个签名者。
+
+----------------------------------------------------------------
+4. 未验证
+----------------------------------------------------------------
+  * 电视真机 tv8 未安装（TCL 仍 tv7）：需 U 盘安装后复验
+    设置页关于可见、输入框光标与删除、设置持久化、返回键落点。
+  * 电视搜狗 IME 下的光标行为未实测（MuMu 无软键盘）。
+  * 收藏页方向键、片尾回退在 tv7 已验证，本轮未改动相关逻辑，tv8 未重复跑。
+  * P4 压测（20 并发 / 长按 800ms / 休眠唤醒 / HDMI ARC）、本地 U 盘浏览仍未验。
+================================================================

@@ -1,0 +1,30 @@
+=== devices ===
+List of devices attached
+emulator-5554          device product:a52xq model:SM_A5260 device:a52xq transport_id:1
+
+=== INSTALL final tv3 ===
+Performing Streamed Install
+Success: streamed 12486257 bytes
+Success
+version:     versionName=1.0.0-tv3
+
+########## A 书架 ##########
+A0 fg:   mCurrentFocus=Window{c4892b6 u0 com.chunting.purecourse/com.chunting.purecourse.MainActivity}
+A1 fg:   mCurrentFocus=Window{c4892b6 u0 com.chunting.purecourse/com.chunting.purecourse.MainActivity}
+A2 fg:   mCurrentFocus=Window{74a80f u0 app.lawnchair/app.lawnchair.LawnchairLauncher}
+########## B 收藏 ##########
+B0 fg:   mCurrentFocus=Window{e14caee u0 com.chunting.purecourse/com.chunting.purecourse.MainActivity}
+B1 fg:   mCurrentFocus=Window{e14caee u0 com.chunting.purecourse/com.chunting.purecourse.MainActivity}
+B2 fg:   mCurrentFocus=Window{74a80f u0 app.lawnchair/app.lawnchair.LawnchairLauncher}
+########## C 设置 ##########
+C0 fg:   mCurrentFocus=Window{8cc4c50 u0 com.chunting.purecourse/com.chunting.purecourse.MainActivity}
+C1 fg:   mCurrentFocus=Window{8cc4c50 u0 com.chunting.purecourse/com.chunting.purecourse.MainActivity}
+C2 fg:   mCurrentFocus=Window{8cc4c50 u0 com.chunting.purecourse/com.chunting.purecourse.MainActivity}
+=== md5 ===
+bc30095294c6db38137557731eb6e262 *docs/tv3-20-shelf-init.png
+6e17685ee08a6ced0a946e6976a3f93d *docs/tv3-21-shelf-top.png
+4de2b67c4ac1389756bc07d2e33449b2 *docs/tv3-22-fav.png
+d134cf590d16e23ec90b33be1dee45c2 *docs/tv3-23-fav-top.png
+d8144b5e9566575f811a0ceaba390ff4 *docs/tv3-24-settings.png
+a14c265915c99a4d61db9baf38c0bd57 *docs/tv3-25-settings-top.png
+bc30095294c6db38137557731eb6e262 *docs/tv3-26-settings-back2.png

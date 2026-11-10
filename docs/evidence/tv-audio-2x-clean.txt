@@ -1,0 +1,7 @@
+  Output devices: 0x2 (AUDIO_DEVICE_OUT_SPEAKER)
+  Last write occurred (msecs): 94359
+  Delayed writes: 9
+  4 Tracks of which 0 are active
+    Type     Id Active Client Session Port Id S  Flags   Format Chn mask  SRate ST Usg CT  G db  L dB  R dB  VS dB   Server FrmCnt  FrmRdy F Underruns  Flushed   Latency
+  Output devices:  (Empty device types)
+  1 Tracks of which 1 are active

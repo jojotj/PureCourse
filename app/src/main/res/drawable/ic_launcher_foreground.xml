@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 自适应图标前景层：翻开的书（两页白纸，外侧高、中缝低）。
+     108dp 画布，书体整体控制在中心 66dp 安全圆内，任何形状 mask 下都不会被裁到。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M52.85,39.6 L39.53,36.36 L39.53,71.64 L52.85,68.4 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M55.15,39.6 L68.47,36.36 L68.47,71.64 L55.15,68.4 Z" />
+</vector>

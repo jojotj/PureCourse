@@ -1,0 +1,70 @@
+11-05 15:10:35.658 I/ExoPlayerImpl(19210): Init 3b7ebb3 [AndroidXMedia3/1.5.1] [tcl_mt5879_cn, tcl_mt5879_cn, unknown, 30]
+11-05 15:10:36.042 I/chatty  (19210): uid=10085(com.chunting.purecourse) ExoPlayer:Playb identical 2 lines
+11-05 15:10:36.047 I/chatty  (19210): uid=10085(com.chunting.purecourse) ExoPlayer:Playb identical 10 lines
+11-05 15:10:36.050 I/chatty  (19210): uid=10085(com.chunting.purecourse) ExoPlayer:Playb identical 6 lines
+11-05 15:10:36.050 I/chatty  (19210): uid=10085(com.chunting.purecourse) ExoPlayer:Playb identical 6 lines
+11-05 15:10:36.050 I/chatty  (19210): uid=10085(com.chunting.purecourse) ExoPlayer:Playb identical 6 lines
+11-05 15:10:36.098 I/MediaCodec(19210): ===MediaCodec::init===
+11-05 15:10:36.099 I/ACodec  (19210): Now uninitialized
+11-05 15:10:36.099 I/MediaCodec(19210): [0xae538200]mIsVideo:1,mLogVidEnable:1,mLogAudEnable:0,mPrintTimes:10
+11-05 15:10:36.103 I/OMXMaster(  707): makeComponentInstance(OMX.MS.AVC.Decoder) in android.hardwar process
+11-05 15:10:36.104 I/ACodec  (19210): [OMX.MS.AVC.Decoder] Now Loaded In
+11-05 15:10:36.104 I/ACodec  (19210): [OMX.MS.AVC.Decoder] Now Loaded Out
+11-05 15:10:36.105 I/MediaCodec(19210): ===MediaCodec::init end===
+11-05 15:10:36.107 W/MediaCodec(19210): ===MediaCodec::configure===
+11-05 15:10:36.107 I/MediaCodec(19210): [configure----1951] format= AMessage(what = 0x00000000) = {
+11-05 15:10:36.107 I/MediaCodec(19210):   Buffer csd-1 = {
+11-05 15:10:36.107 I/MediaCodec(19210):     00000000:  00 00 00 01 68 eb ec b2  2c                       ....h...,
+11-05 15:10:36.107 I/MediaCodec(19210):   }
+11-05 15:10:36.107 I/MediaCodec(19210):   int32_t max-height = 720
+11-05 15:10:36.107 I/MediaCodec(19210):   int32_t max-width = 1280
+11-05 15:10:36.107 I/MediaCodec(19210):   string mime = "video/avc"
+11-05 15:10:36.107 I/MediaCodec(19210):   int32_t width = 1280
+11-05 15:10:36.107 I/MediaCodec(19210):   int32_t priority = 0
+11-05 15:10:36.107 I/MediaCodec(19210):   int32_t rotation-degrees = 0
+11-05 15:10:36.107 I/MediaCodec(19210):   int32_t max-input-size = 691200
+11-05 15:10:36.107 I/MediaCodec(19210):   int32_t height = 720
+11-05 15:10:36.107 I/MediaCodec(19210):   Buffer csd-0 = {
+11-05 15:10:36.107 I/MediaCodec(19210):     00000000:  00 00 00 01 67 64 00 1f  ac d9 40 50 05 bb 01 10  ....gd....@P....
+11-05 15:10:36.107 I/MediaCodec(19210):     00000010:  00 00 03 00 10 00 00 03  03 20 f1 83 19 60        ......... ...`
+11-05 15:10:36.107 I/MediaCodec(19210):   }
+11-05 15:10:36.107 I/MediaCodec(19210): }
+11-05 15:10:36.108 I/MediaCodec(19210): [OMX.MS.AVC.Decoder] setting surface generation to 19671041
+11-05 15:10:36.108 E/OMXNodeInstance(  707): setParameter(0xf3f78680:MS.AVC.Decoder, OMX.google.android.index.allocateNativeHandle(0x7f100010): Output:1 en=0) ERROR: BadPortIndex(0x8000101b)
+11-05 15:10:36.108 E/ACodec  (19210): [OMX.MS.AVC.Decoder] setPortMode on output to DynamicANWBuffer failed w/ err -1010
+11-05 15:10:36.109 E/OMXNodeInstance(  707): setParameter(0xf3f78680:MS.AVC.Decoder, OMX.google.android.index.allocateNativeHandle(0x7f100010): Output:1 en=0) ERROR: BadPortIndex(0x8000101b)
+11-05 15:10:36.110 I/ACodec  (19210): codec does not support config priority (err -2147483648)
+11-05 15:10:36.116 W/MediaCodec(19210): ===MediaCodec::start===,[LastMessageReceived:63436f6e, isEnd:1]
+11-05 15:10:36.116 W/MediaCodec(19210): ===MediaCodec::onMessageReceived kWhatStart===, mState:4
+11-05 15:10:36.116 W/MediaCodec(19210): MediaCodec::onMessageReceived kWhatStart tid = 19347
+11-05 15:10:36.117 W/MediaCodec(19210): Added ndk_media_codec_id to ux.
+11-05 15:10:36.117 I/ACodec  (19210): [OMX.MS.AVC.Decoder] Now Loaded->Idle In
+11-05 15:10:36.124 I/ACodec  (19210): configureOutputBuffersFromNativeWindow 2,2,2
+11-05 15:10:36.124 W/ACodec  (19210): [OMX.MS.AVC.Decoder] setting nBufferCountActual to 7 failed: -22
+11-05 15:10:36.125 W/ACodec  (19210): [OMX.MS.AVC.Decoder] setting nBufferCountActual to 6 failed: -22
+11-05 15:10:36.125 W/ACodec  (19210): [OMX.MS.AVC.Decoder] setting nBufferCountActual to 5 failed: -22
+11-05 15:10:36.146 I/ACodec  (19210): allocate 4 output buffers from native window [32m EECOST 21493[dequeue:8967 use:12214][0m
+11-05 15:10:36.146 I/ACodec  (19210): [OMX.MS.AVC.Decoder] allocateBuffers OK [32m EECOST-ACodec 47190[0m
+11-05 15:10:36.147 I/MS_OMX_VDEC(  707): [OMX.MS.AVC.Decoder]MS_OMX_OutputBufferProcess: in pause state , waiting for resume...
+11-05 15:10:36.148 I/ACodec  (19210): event =0, data1 = 0, data2 = 2
+11-05 15:10:36.148 I/MS_OMX_VDEC(  707): [OMX.MS.AVC.Decoder]MS_OMX_BufferProcess: in pause state , waiting for resume...
+11-05 15:10:36.148 I/ACodec  (19210): [OMX.MS.AVC.Decoder] Now Idle->Executing
+11-05 15:10:36.148 I/MS_OMX_VDEC(  707): [OMX.MS.AVC.Decoder]MS_OMX_BufferProcess: ...resumed
+11-05 15:10:36.148 I/MS_OMX_VDEC(  707): [OMX.MS.AVC.Decoder]MS_OMX_OutputBufferProcess: ...resumed
+11-05 15:10:36.148 W/MediaCodec(19210): ===MediaCodec::start end===, err:0
+11-05 15:10:36.148 I/ACodec  (19210): event =0, data1 = 0, data2 = 3
+11-05 15:10:36.149 I/ACodec  (19210): [OMX.MS.AVC.Decoder] Now Executing
+11-05 15:10:36.149 I/MediaCodec(19210): [0xae538200][QIB]V, QIB:1/s, QIB num:1
+11-05 15:10:36.149 I/ACodec  (19210): [OMX.MS.AVC.Decoder] To OMX 1 [32m EECOST-ACodec 49755[0m
+11-05 15:10:36.154 I/MediaCodec(19210): Q in first video ,PTS = 1000202760000, size = 35656
+11-05 15:10:36.169 I/MediaCodec(19210): ===MediaCodec::init===
+11-05 15:10:36.170 I/ACodec  (19210): Now uninitialized
+11-05 15:10:36.170 I/MediaCodec(19210): [0xaabc2a00]mIsVideo:0,mLogVidEnable:1,mLogAudEnable:0,mPrintTimes:10
+11-05 15:10:36.171 I/OMXMaster(  707): makeComponentInstance(OMX.google.aac.decoder) in android.hardwar process
+11-05 15:10:36.173 I/ACodec  (19210): [OMX.google.aac.decoder] Now Loaded In
+11-05 15:10:36.173 I/ACodec  (19210): [OMX.google.aac.decoder] Now Loaded Out
+11-05 15:10:36.174 I/MediaCodec(19210): ===MediaCodec::init end===
+11-05 15:10:36.177 W/MediaCodec(19210): ===MediaCodec::configure===
+11-05 15:10:36.177 I/MediaCodec(19210): [configure----1951] format= AMessage(what = 0x00000000) = {
+11-05 15:10:36.177 I/MediaCodec(19210):   float operating-rate = 48000.000000
+11-05 15:10:36.177 I/MediaCodec(19210):   int32_t sample-rate = 48000

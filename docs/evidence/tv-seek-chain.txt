@@ -1,0 +1,6 @@
+11-05 15:13:20.875 I/ACodec  (19210): [OMX.MS.AVC.Decoder] ExecutingState flushing now (codec owns 0/5 input, 0/4 output).
+11-05 15:13:20.876 I/MS_OMX_BASEPORT(  707): [OMX.MS.AVC.Decoder]MS_OMX_FlushPort: 0
+11-05 15:13:20.884 I/MS_OMX_BASEPORT(  707): [OMX.MS.AVC.Decoder]MS_OMX_FlushPort: 1
+11-05 15:13:20.885 I/ACodec  (19210): [OMX.MS.AVC.Decoder] Now Executing
+11-05 15:13:20.886 I/ACodec  (19210): [OMX.google.aac.decoder] ExecutingState flushing now (codec owns 0/4 input, 0/4 output).
+11-05 15:13:20.887 I/ACodec  (19210): [OMX.google.aac.decoder] Now Executing

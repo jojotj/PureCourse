@@ -1,0 +1,79 @@
+tv9.8 · 数据源页与收藏页对齐 + 书架状态一致性（2026-11-07）
+==========================================================
+
+版本：versionCode 19 / versionName 1.0.0-tv9.8
+交付包（都在 dist/）：
+  课程库-1.0-TV-tv9.8(装这个).apk            ← armeabi-v7a，电视用
+  课程库-1.0-TV-tv9.8-arm64.apk              ← arm64-v8a
+  课程库-1.0-TV-tv9.8-x86_64(模拟器).apk     ← 模拟器用
+构建：:app:assembleRelease（JAVA_HOME=jdk-21.0.12.1+1，gradle 8.13）——成功，无编译错误
+安装：MuMu 模拟器（adb 127.0.0.1:16384）install -r 成功，
+      dumpsys 复核 versionCode=19 / versionName=1.0.0-tv9.8 / lastUpdateTime 22:01:33
+
+--------------------------------------------------------------
+用户提出的 5 条（逐条对应改法）
+--------------------------------------------------------------
+1)「这两个页面视觉上是一样的吗？选择框都不一样」
+   实测两页各行参数完全不同：
+     收藏页：行高 72、圆角 12、bg=C.Panel、border=C.Line、字号 23/17、焦点 scale=1.0
+     数据源：行高 76、无圆角、无面板底、左侧 5px 橙色焦点条、字号 20、焦点 scale=1.012（框会往外顶）
+   改法（BrowsePage.kt 整页重写，只保留数据来源，版式逐项对齐 FavPage）：
+     - 删掉独立的「面包屑 72 行」，路径改到标题行右端（与收藏页 ftPathText 同一位置）
+     - 左树：行高 64 + bottom 4、圆角 12、焦点 bg=C.AccSoft、tvFocus(12.dp, 1f)、
+       缩进 12+depth*26、箭头 15f/图标 17f/名称 23f/右侧计数 17f
+     - 右列：行高 72 + bottom 5、圆角 12、bg=C.Panel、border=C.Line、内边距 16、间距 14、
+       图标 18f、名称 23f、计数 17f、底部 42dp 提示条（与收藏页同一句文案）
+     - 行内操作（＋书架 / ☆收藏）改用收藏页「⋯」小方片的材质：PanelHi + Line3，
+       聚焦 AccSoft + 白字；不再自造 46dp 的 OpButton
+
+2)「于斯课堂前面的符号为什么跟其他的不一样」
+   根因两处，互相叠加：
+   a. BrowsePage 图标 `if (r.depth == 0) "▦" else "▤"` —— 同一层共享用了两组符号（视觉噪音）
+   b. RealCatalog.scanWholeHost 里共享节点 countText 用的是 `sub`（被识别成课程的目录数）：
+      于斯课堂顶层 3 个目录都不直接含视频 → sub=0 → 记成 "共享"（界面右侧那一列也确实写着「共享」）
+      → 树里 `has = countText.contains("文件夹")` 为 false → 判成不可展开 → 箭头画成 ▤/空白
+   改法：
+     - 图标统一为一个 ▤；箭头统一 ▸ / ▾ / ·（与收藏页同一套）
+     - countText 改为按**真实文件夹数** nDirs 计数：有目录 → "N 个文件夹"，否则 N 个视频，再否则 空共享
+     - browseRows 的 `has` 改为读真实子目录数（`fs[ck].items.count { DIR }`），不再猜文案
+
+3)「数据源里按了一个文件夹，弹出的窗口也应该跟收藏页面一模一样」
+   原来：brow 确认 → 直接 addToShelfByNode + 底部 toast；收藏页 flp 确认 → 居中「文件夹操作」小框，
+   两边是两套完全不同的反馈。
+   改法：brow 确认改为 openFpopBrowse(i)，与收藏页 openFpop(i) 共用 openFpopFor() / 同一个快照对象
+   （fpopName / fpopSub / 两个动作的 disabled 判定全在打开时定死），界面就是 Overlays.kt 里那一个小框。
+
+4)「明明不在书架，为什么显示已在书架？我都没有加过」
+   根因：multiAct 移出书架时只写 `courses[..].out = true`，courseDirs 原样保留；
+   而 inShelfPath() 只查 `courseDirs.values.contains(rel)` → 浏览页那一行依旧标「★ 已在书架」，
+   可书架页的卡片已经消失。工具侧无法区分"用户手动加"与"扫描自动识别"，只要 out=true 就不该算在架。
+   改法：
+     - 新增 shelfCourseOf(rel)：命中 courseDirs 且 `!out` 才算在架；inShelfPath / onShelfKey 全部改用它
+     - 移出时同时 `shelvedKeys -= dirs`，并落盘 SourceStore.removed_paths（冷启动 scan 后重新标 out，
+       否则重启那门课又自己回来了）
+     - 重新加入书架：若该目录已有（out=true）的卡片，复用同一张卡（保留封面与进度），不新建同名课程
+     - 说明（必须写清，避免误解）：书架本身是**扫描自动识别**的——凡"直接含视频的目录"都会自动成为课程。
+       所以 3D手工 / 俄罗斯方块素材 这类"没手动加过却在书架里"的卡片，是扫描的结果，不是误标。
+       要它们不在书架，只能「移出书架」；移出现在会持久化。
+
+5)「书架页多选后，光标移不到移出书架 / 全选 / 完成」
+   根因（已定位到具体函数）：AppState.regionsSignature() 里没有 multiOn / multiCtx / multiSet 等字段。
+   enterMulti 把 multiOn 置 true 后，区域表签名没变 → buildRegions() 命中旧缓存（不含 multi 区域）→
+   containsTag("multi:1") = false → setFocus 直接 return → 方向键永远停在卡片上，多选条没有任何高亮。
+   改法：
+     - regionsSignature 补 multiOn / multiCtx / multiSet.size / favRmSet.size /
+       fpopShelfDisabled / fpopFavDisabled / fpopIndex / courseDirs.size / shelvedKeys.size / out 计数
+     - multi 区域：↑ 原地不动（上方顶栏已被多选条盖住），↓ 回 hero（书架）/ brow:0（浏览）
+     - hero 在多选态下 ↑ 落到 multi:1
+     - 移出书架后焦点落到 shelfOrder().firstOrNull()，不再写死 book:0（课程 0 可能正好被移出）
+
+--------------------------------------------------------------
+已验证 / 未验证（照实写）
+--------------------------------------------------------------
+已验证：
+  - assembleRelease 编译通过；APK 版本与清单一致（merged manifest versionCode=19 / tv9.8）
+  - 模拟器 install -r 成功，dumpsys 复核 versionCode=19、versionName=1.0.0-tv9.8
+  - 误装的 com.chunting.purecourse.dbg（debug 后缀包）已卸载，设备上只剩正式包
+未验证（按用户要求：不代测，装完由用户自己测）：
+  - 两页视觉一致性、符号、弹窗、书架状态、多选光标这 5 项的**运行时表现**均未在模拟器里点过
+  - 未做真机（TCL）安装，电视仍是旧版本

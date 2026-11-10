@@ -1,0 +1,6 @@
+    inputContext=ControlledInputConnectionWrapper{connection=android.view.inputmethod.BaseInputConnection@3c90c60 finished=false mParentInputMethodManager.mActive=false mServedView=null}
+  mCurMethodId=com.sohu.inputmethod.sogou.tv/.SogouIME
+  mShowRequested=true mShowExplicitlyRequested=true mShowForced=false mInputShown=true
+  mIInputContext=ControlledInputConnectionWrapper{connection=android.view.inputmethod.BaseInputConnection@4545d5b finished=false mParentInputMethodManager.mActive=true mServedView=null}
+  mServedView=androidx.compose.ui.platform.AndroidComposeView{f5c3711 VFED..... .F...... 0,0-1920,1080 aid=1073741824}
+  mServedInputConnectionWrapper=ControlledInputConnectionWrapper{connection=androidx.compose.ui.text.input.NullableInputConnectionWrapperApi25@23a133c finished=false mParentInputMethodManager.mActive=true mServedView=androidx.compose.ui.platform.AndroidComposeView{f5c3711 VFED..... .F...... 0,0-1920,1080 aid=1073741824}}

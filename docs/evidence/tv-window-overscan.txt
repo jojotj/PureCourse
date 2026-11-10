@@ -1,0 +1,16 @@
+    mDisplayHomeButtonHandlers=    mKeyguardOccluded=false mKeyguardOccludedChanged=false mPendingKeyguardOccluded=false
+  Display: mDisplayId=0 stacks=5
+    mDisplayInfo=DisplayInfo{"内置屏幕", displayId 0, FLAG_SECURE, FLAG_SUPPORTS_PROTECTED_BUFFERS, FLAG_TRUSTED, real 1920 x 1080, largest app 1920 x 1920, smallest app 1080 x 1080, appVsyncOff 1000000, presDeadline 20000000, mode 1, defaultMode 1, modes [{id=1, width=1920, height=1080, fps=50.0}, {id=2, width=1920, height=1080, fps=60.000004}, {id=3, width=1920, height=1080, fps=100.0}, {id=4, width=1920, height=1080, fps=120.00001}], hdrCapabilities HdrCapabilities{mSupportedHdrTypes=[1, 2, 3, 4], mMaxLuminance=500.0, mMaxAverageLuminance=500.0, mMinLuminance=0.0}, minimalPostProcessingSupported false, rotation 0, state ON, type INTERNAL, uniqueId "local:0", app 1920 x 1080, density 240 (77.0 x 77.0) dpi, layerStack 0, colorMode 0, supportedColorModes [0], address {port=0}, deviceProductInfo null, removeMode 0}
+    mUnrestricted=[0,0][1920,1080]
+    mDisplayCutout=WmDisplayCutout{DisplayCutout{insets=Rect(0, 0 - 0, 0) waterfall=Insets{left=0, top=0, right=0, bottom=0} boundingRect={Bounds=[Rect(0, 0 - 0, 0), Rect(0, 0 - 0, 0), Rect(0, 0 - 0, 0), Rect(0, 0 - 0, 0)]}}, mFrameSize=null}
+    mRotation=0 mDeferredRotationPauseCount=0
+ mIsLeashReadyForDispatching=true mImeOverrideFrame=Rect(0, 0 - 0, 0)   mWin=    mDisplayId=0 rootTaskId=1 mSession=Session{e93e80f 2324:u0a10042} mClient=android.os.BinderProxy@1c1b2a0
+     mCapturedLeash=Surface(name=Surface(name=ba5fe59 InputMethod)/@0xb9f58cc - animation-leash)/@0x5eb40d3   mControlTarget=    mDisplayId=0 rootTaskId=2299 mSession=Session{e2718ca 20905:u0a10085} mClient=android.os.BinderProxy@97f06b1
+    mDisplayId=0 rootTaskId=1 mSession=Session{901db97 1638:1000} mClient=android.os.BinderProxy@efe497a
+    mDisplayId=0 rootTaskId=1 mSession=Session{901db97 1638:1000} mClient=android.os.BinderProxy@978346
+    mDisplayId=0 rootTaskId=1 mSession=Session{e93e80f 2324:u0a10042} mClient=android.os.BinderProxy@1c1b2a0
+    mDisplayId=0 rootTaskId=2299 mSession=Session{e2718ca 20905:u0a10085} mClient=android.os.BinderProxy@97f06b1
+    mDisplayId=0 rootTaskId=1 mSession=Session{bf88857 1450:1000} mClient=android.os.BinderProxy@a31d886
+    mDisplayId=0 rootTaskId=2266 mSession=Session{cfef8fa 29161:u0a10052} mClient=android.os.BinderProxy@aafad52
+    mDisplayId=0 rootTaskId=1 mSession=Session{b798787 1240:u0a10054} mClient=android.os.BinderProxy@7b3dc37
+  mGlobalConfiguration={1.0 ?mcc?mnc [zh_CN] ldltr sw720dp w1280dp h720dp 240dpi xlrg long land television -touch -keyb/v/h dpad/v winConfig={ mBounds=Rect(0, 0 - 1920, 1080) mAppBounds=Rect(0, 0 - 1920, 1080) mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} s.4}

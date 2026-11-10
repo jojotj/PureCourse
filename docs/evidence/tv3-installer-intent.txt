@@ -1,0 +1,2 @@
+Starting: Intent { act=android.intent.action.VIEW dat=file:///sdcard/Download/purecourse-tv3.apk typ=application/vnd.android.package-archive }
+Error: Activity not started, unable to resolve Intent { act=android.intent.action.VIEW dat=file:///sdcard/Download/purecourse-tv3.apk typ=application/vnd.android.package-archive flg=0x10000000 }

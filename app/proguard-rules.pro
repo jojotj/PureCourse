@@ -1,0 +1,4 @@
+-keep class com.hierynomus.** { *; }
+-keep class net.engio.mbassy.** { *; }
+-keep class org.bouncycastle.** { *; }
+-dontwarn org.slf4j.**

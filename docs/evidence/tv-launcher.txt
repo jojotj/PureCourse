@@ -1,0 +1,4 @@
+priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=false
+com.chunting.purecourse/.MainActivity
+          Category: "android.intent.category.LEANBACK_LAUNCHER"
+    versionCode=1 minSdk=21 targetSdk=34

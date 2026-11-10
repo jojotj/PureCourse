@@ -1,0 +1,122 @@
+================================================================
+tv6 U 盘安装失败排查记录（2026-11-06 17:09~17:15）
+结论：APK 构建产物没有问题；U 盘上那份文件在 classes.dex 内有
+      一个 8 KiB 块损坏，导致验签失败、安装器秒退。
+================================================================
+
+1. 现象
+----------------------------------------------------------------
+用户用 U 盘在 TCL 电视（192.168.1.10）安装 tv6，系统安装器弹出
+「安装失败」。同一时间窗内用户连续尝试 3 次，均失败。
+电视当前仍是 tv5：versionCode=5 / 1.0.0-tv5 / lastUpdateTime=2026-11-05 20:14:14
+设备侧签名：signatures=PackageSignatures{e3db520 version:2, signatures:[6cc72e45]}
+
+来源 URI（logcat 实证，17:09:11.681）：
+  content://com.tcl.tguard.fileprovider/root_path/storage/2AF1-247A/
+  课程库-1.0-TV-tv6(装这个).apk
+  ⇒ 拿的确实是中文交付包名，不是 arm64-v8a / x86_64 包，排除拿错 ABI 包。
+
+2. 时间线（电视 logcat，均为只读查询）
+----------------------------------------------------------------
+  17:09:12.067  PackageInstallerActivity 显示（能读出 APK 信息、弹确认框）
+  17:09:13.445  用户确认，对话框关闭
+  17:09:13.499  InstallInstalling 开始
+  17:09:13.971  InstallFailed 弹出  ⇒ 仅 472 ms
+  17:09:19.284  第二次/第三次 InstallFailed
+  整个窗口内 PackageManager tag 无任何本次安装/解析/校验记录，
+  说明在提交给 PackageManagerService 之前就被解析或验签打回。
+
+3. 已排除的可能原因（逐项有证据）
+----------------------------------------------------------------
+  * 签名证书不一致：tv5 与 tv6 证书 SHA-256 完全相同
+      ce5f17d1c2d5fea12d4d880bb4c8b555ee8ac8c0d0ea194f829edbdedb82b65e
+    DN = CN=ChunTing CoursePlayer，同一 keystore/courseplayer.jks
+    （2026-11-04 00:59 创建，未变）。
+  * 版本降级：versionCode 5 → 6，versionName 1.0.0-tv5 → 1.0.0-tv6，正常升级。
+  * v1 签名缺失：两包 apksigner verify 均 v1=true / v2=true；TCL 只认 v1 的坑已排除。
+  * 清单差异：包名 com.chunting.purecourse、minSdk 21、targetSdk 34、
+    权限 / uses-feature / native-code=armeabi-v7a 两包完全一致；
+    unzip -Z1 文件清单 diff 无差异。
+  * 拿错 ABI 包：见 §1 的 content URI。
+  * 存储空间不足：dumpsys diskstats → Data-Free 44770892K / 52167164K（85% free）。
+  * 文件名含中文/括号：tv5 同格式文件名在 11-05 20:14 同通道装成功。
+  * 本地 APK 自身损坏：unzip -t 无错误，python zipfile.testzip() = None，
+    apksigner verify exit=0。
+
+4. 决定性证据：U 盘上那份文件内容与本地不一致
+----------------------------------------------------------------
+只读从电视侧拉取（adb pull，未向电视写入任何文件）：
+  /storage/2AF1-247A/课程库-1.0-TV-tv6(装这个).apk
+  → C:\Users\Jojotj\AppData\Local\Temp\usb-tv6.apk
+
+                     本地最终交付包                 U 盘上那份
+  大小               12494848 B                     12494848 B（相同）
+  MD5                863409670fac8d30ebfad9372aa40934  efc66d27d750d83c1596cff9c0bee3da
+  SHA-256            80d817dc8f8ef5bf1d16bd8bfeb37fd899312dfd2b9ae96fba144934daa78bf7
+                                                     907433309b6c2a76bf004426ccbc1e1d76c3a4b3a4539432e03d006c894f060c
+  apksigner          Verifies（v1+v2 true, exit 0）  DOES NOT VERIFY（exit 1）
+                                                     ERROR: APK Signature Scheme v2
+                                                     signer #1: APK integrity check
+                                                     failed. CHUNKED_SHA256 digest
+                                                     mismatch.
+  zipfile.testzip()  None（完好）                    classes.dex（CRC 失败）
+
+逐字节比对（cmp -l）：
+  差异字节总数 = 8161
+  差异区间 = 十进制偏移 3145729 ~ 3153920
+  ⇒ 恰好是从 3 MiB（3145728）开始的一个完整 8 KiB（8192 B）块，
+    其余 12,486,656 字节完全一致。
+  该区间落在 classes.dex 的压缩数据区：
+    classes.dex  data=[9432, 4529667)  compressed=4520235  orig=13417048
+  ⇒ 是单个簇/块损坏，不是「拷到了另一个版本的 tv6」
+    （旧版 tv6 会整包不同，且文件长度通常也会变）。
+
+如实边界：以上只能证明「从电视侧 U 盘读出的这份文件内容与本地不一致」。
+无法仅凭这些证据区分是 Windows 拷贝中断、U 盘坏块、未安全弹出，
+还是电视 FUSE/sdcardfs 读取时返回了错误数据。需重拷并核对哈希才能定性。
+
+5. 为什么表现为 472 ms 秒失败
+----------------------------------------------------------------
+APK 头部与前面部分未坏，所以安装器能读出包名/图标并弹确认框；
+一旦校验到 classes.dex 的损坏块，v1 摘要 / v2 CHUNKED_SHA256 立即不匹配，
+安装在安装会话提交阶段被打回，PackageManager 里因此没有任何安装记录。
+三次尝试用的是同一份损坏文件，所以三次都失败。
+
+6. 处置（未改动任何源码，未重出包）
+----------------------------------------------------------------
+  新增一个文件名更短、不易与旧包混淆的干净副本：
+    dist/CourseTV-tv6.apk
+    12494848 B
+    MD5     863409670fac8d30ebfad9372aa40934
+    SHA-256 80d817dc8f8ef5bf1d16bd8bfeb37fd899312dfd2b9ae96fba144934daa78bf7
+    与 dist/课程库-1.0-TV-tv6(装这个).apk 经 cmp 逐字节一致，v1+v2 验签通过。
+
+  用户操作：删除 U 盘上旧的 tv6 文件 → 重新拷贝 CourseTV-tv6.apk →
+  在电脑上核对哈希 → 安全弹出 → U 盘装电视。
+  电脑侧核对（PowerShell）：
+    Get-FileHash <U盘盘符>:\CourseTV-tv6.apk -Algorithm SHA256
+  必须等于 80d817dc8f8ef5bf1d16bd8bfeb37fd899312dfd2b9ae96fba144934daa78bf7。
+  若重拷后仍不等：换 U 盘 / 重新格式化 / 换电视 USB 口，属介质问题。
+
+  不需要先卸载 tv5：签名证书一致、versionCode 6 > 5，属正常覆盖升级。
+
+7. 本轮遵守的约束
+----------------------------------------------------------------
+  全程未向电视 push / install 任何文件。
+  对电视只做了：adb connect、dumpsys package/diskstats、logcat -d、
+  screencap、adb shell ls/stat/md5sum（只读）、adb pull（从设备拉出）。
+  电视仍是 tv5，未安装 tv6，未改变用户设备状态。
+
+8. 后续结果（2026-11-06 17:49，结论已闭环）
+----------------------------------------------------------------
+  用户删掉 U 盘上损坏文件、改用短名干净副本 `dist/CourseTV-tv6.apk`
+  重拷后，U 盘安装成功。电视侧核验：
+    versionCode=6 / versionName=1.0.0-tv6
+    lastUpdateTime=2026-11-06 17:49:12
+    installerPackageName=com.android.packageinstaller
+    设备侧 base.apk 12494848 B、MD5 863409670fac8d30ebfad9372aa40934
+      ⇒ 与本地最终交付包逐字节一致。
+  ⇒ 反证成立：失败原因确为 U 盘文件单块损坏，不是签名 / 版本 / ABI /
+    清单 / 空间问题。本文件 §1~§7 的排查记录保持原样，作为历史留痕。
+  装机后真机补验见 `docs/evidence/tv6-acceptance.txt` §10。
+================================================================

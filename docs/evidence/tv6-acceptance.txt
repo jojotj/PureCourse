@@ -1,0 +1,264 @@
+================================================================
+tv6 验收记录：电视真机 tv5 补验、片尾开关失效根因定位与修复、SMB 单连接实测
+时间：2026-11-05 20:14 ~ 2026-11-06 16:53
+================================================================
+
+设备与约束
+  电视    192.168.1.10:5555  TCL tcl_mt5879_cn / Android 11 / API30 /
+          armeabi-v7a / 1920x1080@240dpi / 4K 面板
+  MuMu    emulator-5554      x86_64，回归用
+  共享    192.168.1.10      Windows 10 Pro，user/pass = guest/guest（本机）
+  * 全程未向电视 push / install 任何文件；电视上的 tv5 是用户 U 盘安装的。
+    本轮对电视只做 connect / dumpsys / screencap / logcat / keyevent /
+    am start / am force-stop。
+  * 电视当前仍是 tv5(1.0.0-tv5)；tv6 需要用户再次 U 盘安装。
+
+----------------------------------------------------------------
+1. 电视端 tv5 安装核验（20:14）
+----------------------------------------------------------------
+  dumpsys package → versionCode=5 / versionName=1.0.0-tv5 /
+    lastUpdateTime=20:14:14
+  设备侧 stat -c %s $(pm path ...) = 12494158，与本地
+    dist/课程库-1.0-TV-tv5(装这个).apk 完全一致 ⇒ 装的确是最后重编译那版。
+
+  覆盖安装继承旧配置（不是 App 缺陷，属已知边界）：
+    冷启动书架只有「1 门课程 · 共 12 个视频」，课程名
+    「02 乐理课程（13门课）/张晖-乐理基础知识-入门篇(4061)」；
+    编辑表单「共享/路径」= 于斯课堂/02 乐理课程（13门课）/张晖-…(4061)，
+    即 tv4 遗留配置把 root 指到单个课程子目录。
+    用遥控器改回默认共享，真机「测试连接」报
+    「已连上 \\192.168.1.10\于斯课堂\02 乐理课程（13门课） 下有 13 项」，
+    保存重扫 + 冷启动 → 「13 门课程 · 共 147 个视频」，
+    真实目录名、系统时钟 20:19、无加载/错误横幅。
+    ⇒ tv5 的「编辑 / 测试连接 / 删除」真动作在真机生效，配置含密码完整回填。
+
+----------------------------------------------------------------
+2. 电视真机全页复验（截图 docs/evidence/tv5-tv-*.png）
+----------------------------------------------------------------
+  逐页：书架 / 收藏 / 设置 / 详情 / 浏览 / 数据源 / 播放，
+  真实数据、字号、焦点环、4K 观感正常。
+  播放：00:09 / 06:37，OMX.MS.AVC.Decoder(H.264 硬解) +
+    OMX.google.aac.decoder(AAC)，画面有内容。
+  返回键：冷启动后第 3 次返回即回到 com.tcl.cyberui/.MainActivity
+    （TCL 桌面），能真正退出。此前「第 4 次还在 App」是把 IME 编辑态的
+    多余按键混进来了，不是退出失效。
+  TV IME：com.sohu.inputmethod.sogou.tv/.SogouIME，mInputShown=true /
+    mIsInputViewShown=true，服务视图 AndroidComposeView
+    ⇒ 系统输入法，无自绘软键盘。
+  两处疑似 bug 已排除：
+    * 设置页底部行只露半截 → 按 12 次 DOWN 滚到底，「关于 / 课程播放器
+      v1.0.0-tv5 / 已是最新」完整可见，是滚动中间态。
+    * 浏览页最右「进入 ›」贴边 → MuMu 同页截图同样贴边，布局固有现象。
+
+----------------------------------------------------------------
+3. 发现并定位的真实 bug：片尾三个开关全部失效
+----------------------------------------------------------------
+  现象（tv5-tv-autonext.png / -wait12.png / -end-natural.png / -loop-on.png）：
+    * 控制层态连按 7 次 RIGHT（60 秒/次）→ 06:37 / 06:37、第 1 节、片尾卡；
+      12 秒后截图字节数完全一致 460722，画面彻底静止。
+    * 改用自然播放 34 秒到片尾 → 仍停在第 1 节，日志无第二次片源 open。
+    * 开启「单曲循环·已开」→ 仍停在 06:37 / 06:37，不回开头。
+  ⇒ 自动下一节 / 连续播放 / 单曲循环在真机全部空转；MuMu 的 tv5 上
+    「自动下一节」曾成功（tv5-autonext3.png）。
+
+  [错误归因，已自纠，不得再写进结论]
+    「TCL 硬解 OMX.MS.AVC.Decoder 不发 STATE_ENDED」——当时未验证的推测。
+
+  [真实根因：2026-11-06 MuMu 诊断日志实锤，tv6-diag-autonext]
+    11-06 16:49:23 PlayerPage: tick liveDur=397880 dur=397880 pos=398012
+      total=397 cur=397 ended=true playing=true loop=false stalled=43
+      nearEnd=true hitEnd=true dedup=false endedUri=null uri=null
+      autoNext=true contPlay=true ep=null n=20
+    - ended=true：内核**正常**发了 STATE_ENDED，硬解无罪。
+    - liveDur=397880：内核 duration 正常，也不是 TIME_UNSET。
+    - 唯一挡住切集的是 dedup=false，即 `endedUri != uri` 恒为 false：
+      轮询协程里 uri 读到的永远是 null，endedUri 也是 null。
+    - 机制：轮询原为 LaunchedEffect(Unit)，首次组合就启动；那时后台 SMB
+      目录还没扫完，c=null → remember(state.sel, c?.curEp) 建了 State A。
+      目录扫完 key 变化又建 State B 并把真实片源写进 B，但协程捕获的是 A。
+    - tv5 在 MuMu 上「能切集」是时序运气：课程已加载后才进播放页，
+      State 只建一次。冷启动直达播放页时必现，与设备/硬解无关。
+
+----------------------------------------------------------------
+4. tv6 修复（改前备份 .workbuddy/backup/tv6-before/ 与 tv6-iter2-before/）
+----------------------------------------------------------------
+  a) PlayerPage.kt
+     轮询 LaunchedEffect(Unit) → LaunchedEffect(uri)：换集即重启协程、
+     捕获最新 uri；删除 endedUri Compose State，改用协程局部 handled 去重
+     （一个片源只处理一次）；loop 分支每个片尾主动 engine.seekToMs(0)
+     + 3 秒冷却；增加「位置停滞 + duration 双基准」兜底与低频诊断日志
+     （接近片尾每帧、其余每 10 秒一条心跳，便于真机排查）。
+  b) SmbDataSource.kt
+     open() 把 position clamp 到 [0, size]、bytesRemaining 非负；
+     read() 负剩余长度按 RESULT_END_OF_INPUT 处理。
+     防御 FLV 无索引时估算 seek 越过文件末尾 → ByteArray(负数) 异常 →
+     播放器定格。（实测最后一次 open pos=70241486 已贴到文件尾，隐患真实存在。）
+  c) app/build.gradle.kts：versionCode=6 / versionName=1.0.0-tv6
+
+----------------------------------------------------------------
+5. MuMu 最终包回归（x86_64）
+----------------------------------------------------------------
+  自动下一节（tv6-fix-autonext.png）：
+    冷启动直达播放页 + 7 次快移 → 诊断 hitEnd=true handled=false 触发一次，
+    片源从「第1节：引导课(14504).flv」切到「第2节：第一课(14506).flv」，
+    日志恰好 2 条片源、无连跳；截图 00:08 / 06:37
+    「第 2 节 · 第2节：第一课（下一节：第3节：第二课）」。
+  单曲循环（tv6-loop-on.png / tv6-loop-result.png）：
+    「单曲循环·已开」，6 次快移到 06:14 后自然播 32 秒 → 00:09 / 06:37，
+    仍是第 1 节、片源只有一条；日志 pos 397690 → 7246。
+    ⇒ 回片头重播生效，但由内核 REPEAT_MODE_ONE 完成
+      （ended=false / hitEnd=false），tv6 新增的 loop 兜底分支在 MuMu 上
+      **未触发**，不记为已验证。
+  冷启动书架（tv6-fix-shelf.png）：13 门课 / 147 视频，
+    SMB 重连 sessions=1，无崩溃、无加载横幅。
+  连续播放 contPlay（跨课程）未实跑。
+
+----------------------------------------------------------------
+6. SMB 单连接实测（共享主机本机，Windows 10 Pro）
+----------------------------------------------------------------
+  net config server：登录的用户数量上限 20 /
+    每个会话打开的文件数量上限 16384 / 空闲的会话时间 15 分。
+    ⇒ 20 计的是「登录用户（会话）」，不是文件句柄。
+  单设备（仅 MuMu）：
+    Get-SmbSession 总 1 条：Jojo\guest，NumOpens=2，Dialect 3.1.1；
+    445 ESTABLISHED 1 条；net session 1 行。
+  双设备（MuMu + 电视 App 同时在跑）：
+    Get-SmbSession 总 2 条：
+      192.168.1.10 → 1 条（NumOpens=2）、192.168.1.10 → 1 条（NumOpens=0）；
+    445 ESTABLISHED 2 条（RemoteAddress 分别 .102 / .106）；net session 2 行。
+    ⇒ **每台设备精确 1 条，没有一台占 2 条**；占 20 条上限里的 2 条。
+  App 侧同进程日志：1 条 SmbSession: connected / 9 次 SmbDataSource: open
+    （7 次 seek + 1 次切集），seek 与切集只换文件句柄，不新建连接。
+  机制（SmbSessionImpl.kt）：object 单例；client/connection/session/share
+    各一个引用；connect() 同配置直接复用、换配置先 closeQuietly() 再建；
+    list()/fileSize()/openFile() 全走同一个 share；
+    SmbDataSource.close() 只关 file。
+
+  如实边界（不是「严格数学保证」）：
+    * 日志里的 "(sessions=1)" 是第 103 行写死的字符串，诊断层
+      localSessions 只是 0/1 标志，都不是真实连接枚举；真正的证据是
+      服务端会话表与「同一进程没有重复 connected 日志」。
+    * connect()/ensureConnected()/closeQuietly() 未加同步；后台扫描线程与
+      ExoPlayer Loader 线程若同时判定断线并重连，理论上可能短暂泄漏第二条
+      TCP。本轮未复现。
+    * idleReleaseSec 默认 30，但注释提到的 releaseIfIdle 在代码里并不存在；
+      onPlayerExit() 只在 idleReleaseSec<=0 时立即断开，默认配置下退出播放页
+      后连接会保持到手动断开或进程结束（仍恒为 1 条）。
+    * MuMu 经宿主 NAT，服务端看到的客户端 IP 是 192.168.1.10 本身。
+
+----------------------------------------------------------------
+7. 明确未验证（不得当作已通过）
+----------------------------------------------------------------
+  * 电视真机 tv6 未安装（电视仍是用户 U 盘装的 tv5）。4K 观感 / 字号 /
+    真机真 SMB 播放已在 tv5 验过；**片尾修复必须在 U 盘装 tv6 后真机补验**。
+  * tv6 的 loop 兜底分支（内核不发 EOS 时主动 seekToMs(0)）未在真机触发。
+  * 连续播放（contPlay 跨课程）未实跑。
+  * P4 20 并发、长按 800ms、休眠唤醒、HDMI ARC、本地 U 盘浏览。
+  * arm64-v8a / armeabi-v7a 包仅编译通过；MuMu 回归用 x86_64。
+  * 覆盖安装会继承旧数据源 root（本次 tv4→tv5 暴露），当前无配置版本迁移。
+
+----------------------------------------------------------------
+8. 交付包与环境备注
+----------------------------------------------------------------
+  最终编译 BUILD SUCCESSFUL 39s（compileReleaseKotlin / packageRelease
+  实际执行；此前另有 1m14s / 41s / 43s 三次编译均成功）。
+  dist/课程库-1.0-TV-tv6(装这个).apk          12494848 B  armeabi-v7a（电视用）
+  dist/PureCourse-1.0.0-tv6-armeabi-v7a.apk  12494848 B
+  dist/PureCourse-1.0.0-tv6-arm64-v8a.apk    12495157 B
+  dist/PureCourse-1.0.0-tv6-x86_64.apk       12495374 B（MuMu 用）
+  4 个包与 app/build/outputs 逐字节一致；编译后无 .kt 改动（源码产物同源）。
+  aapt2 badging：versionCode=6 / 1.0.0-tv6 / minSdk=21 / targetSdk=34 /
+    com.chunting.purecourse。签名 v1=true / v2=true（apksigner verify）。
+  验证完毕已对电视 am force-stop com.chunting.purecourse，恢复启动前状态。
+  电视 adb daemon 跨调用会重启丢 TCP 连接，connect 与查询须放在同一条命令。
+  MuMu 的 uiautomator dump 会触发模拟器 SIGSEGV，本轮用 screencap + logcat 取证。
+
+----------------------------------------------------------------
+9. 追加：2026-11-06 17:09 U 盘安装 tv6 失败（非包问题，已定位）
+----------------------------------------------------------------
+  用户 U 盘安装 tv6 报「安装失败」，连试 3 次。电视仍是 tv5，tv6 未装上。
+  结论：APK 构建产物无缺陷；U 盘上那份文件 classes.dex 内 3 MiB 起
+  一个 8 KiB 块损坏（8161 字节差异），v2 CHUNKED_SHA256 验签失败、
+  zip CRC 失败，安装器 472 ms 秒退、PackageManager 无安装记录。
+  本地包 v1+v2 验签通过、zip 完好、证书与 tv5 相同、空间充足（85% free），
+  已逐项排除签名不一致 / 版本降级 / 拿错 ABI / 空间不足 / 文件名问题。
+  只读从电视拉取 U 盘文件比对，未向电视 push 或 install 任何文件。
+  新增干净短名副本 dist/CourseTV-tv6.apk（与最终包逐字节一致，
+  SHA-256 80d817dc8f8ef5bf1d16bd8bfeb37fd899312dfd2b9ae96fba144934daa78bf7），
+  待用户重拷并核对哈希后再装。完整证据见 docs/evidence/tv6-install-failure.txt。
+  ⇒ 真机 tv6 补验原为未完成项；已由下面 §10 完成（2026-11-06 17:49 装机后）。
+
+----------------------------------------------------------------
+10. 追加：2026-11-06 17:49 重拷后 U 盘装 tv6 成功，电视真机补验
+----------------------------------------------------------------
+  安装核验（connect 与 dumpsys 放在同一条命令，避开 daemon 重启丢 TCP）：
+    versionCode=6 / versionName=1.0.0-tv6 / lastUpdateTime=2026-11-06 17:49:12
+    installerPackageName=com.android.packageinstaller（U 盘系统安装器）
+    设备侧 base.apk 12494848 B，MD5 863409670fac8d30ebfad9372aa40934
+      ⇒ 与本地 dist/课程库-1.0-TV-tv6(装这个).apk 完全一致，装的是干净包
+    机型 tcl_mt5879_cn / Android 11 API30 / armeabi-v7a / 1920x1080@240dpi
+
+  10.1 自动下一节（冷启动直达播放页 = 旧 bug 的关键时序）
+    am force-stop → logcat -c → am start --es page playerctl → 7 次 RIGHT(60 秒)
+    截图 tv6-tv-autonext.png：第 2 节 · 第2节：第一课（下一节：第3节：第二课），
+      00:08 / 06:37，从第 2 节片头起播，画面是真实视频片头卡。
+    Log.i 片源恰好 2 条真实片源（另 1 条是启动瞬间的 null）：
+      17:51:35.532 片源=null
+      17:51:35.752 .../（中级）(3918)/第1节：引导课(14504).flv
+      17:52:01.241 .../（中级）(3918)/第2节：第一课(14506).flv
+    ⇒ 启动瞬间的 null 正是修复前被轮询协程捕获的旧 Compose State；
+      按 uri 重启轮询已接住，只切一次、无连跳、无 FATAL EXCEPTION。
+
+  10.2 单曲循环
+    6 次 RIGHT 到 06:17 → DOWN + 4 次 RIGHT 选「单曲循环」+ OK 开启。
+    tv6-tv-loop-on.png：单曲循环·已开、06:17 / 06:37。
+    自然播放 32 秒到片尾 → tv6-tv-loop-result.png：
+      00:13 / 06:37、仍是第 1 节、按钮仍「单曲循环·已开」；
+      片源日志只有第 1 节一条 ⇒ 回片头重播，未切集。
+    如实边界：本次由内核 REPEAT_MODE_ONE 完成，tv6 的 loop 兜底
+      （seekToMs(0)）分支没有单独触发，仍不记「已验证」。
+
+  10.3 连续播放跨课程 + 起播位置定性（含一次自纠）
+    同一进程内设置页关「自动下一节」（连续播放保持开）→ BACK×2 回书架 →
+    Hero OK 进播放 → DOWN 开控制层 → 7 次 RIGHT 越过片尾。
+    片源从
+      .../宋昭阳-中央音乐学院音基考级（中级）(3918)/第1节：引导课(14504).flv
+    切到
+      .../宋昭阳-中央音乐学院音基考级（初级）(3878)/第1节：引导课(12909).flv
+    tv6-tv-contplay-result.png：课程名变「初级」(3878)、第 1 节、无崩溃
+      ⇒ contPlay 跨课程分支真机生效。
+    ★ 自纠：切过去显示 06:08 / 06:37，初看像「跨课程位置继承」bug。
+      对照实验（再关「记忆播放进度」后重跑同一流程）：
+        tv6-tv-contplay-noresume-start.png   中级第 1 节 00:03 / 06:37
+        tv6-tv-contplay-noresume-result.png  初级第 1 节 00:10 / 06:37
+      ⇒ 06:08 是 ResumeStore 里这门课自己的续播存档，不是跨课程污染；
+        loadProgress() 按「真实目录#集号」取键工作正常，且顺带真机验证
+        「记忆播放进度」开关生效。不是 bug，未改代码。
+
+  10.4 真机 UI / 字号 / 连接数
+    抽验书架、收藏、详情、设置 4 页（tv6-tv-*.png）：真实目录名、
+    放大字号后无裁切/重叠、设置页行距放松、焦点环正常。
+    锐度结论沿用 tv4（TCL HWC 把 1080p 画布 2× 放大到 4K 面板，App 侧
+    无法消除），tv6 未改版式与字号，本轮未重新测量锐度。
+    服务端 Get-SmbSession：总 2 条，192.168.1.10（电视）1 条、
+    192.168.1.10（MuMu）1 条，445 ESTABLISHED 2 条 ⇒ 每台仍精确 1 条。
+    验证结束冷启动书架恢复默认设置（设置项不落盘），App 留在书架页。
+
+  10.5 本轮新发现（未修，待用户决定）
+    ★ 设置页「关于」行与点击它的 toast 把版本号写死成 v1.0.0-tv5：
+      AppState.kt:295  SettingRow("__about", "课程播放器 v1.0.0-tv5", ...)
+      Nav.kt:657       toast("当前版本 v1.0.0-tv5 · ...")
+      tv6 真机截图 tv6-tv-contplay-step2.png 显示该文案，属实。
+      修复只需 2 行（建议改读 BuildConfig.VERSION_NAME 一劳永逸），
+      但会重出包、需再 U 盘装一次，故先记入清单，未擅自改代码。
+
+  10.6 约束与如实边界
+    全程未向电视 push / install 任何文件；对电视只做了 connect、dumpsys、
+    logcat、screencap、input keyevent、am start / force-stop。
+    TCL 系统 logcat 过滤 Log.d：PlayerPage: tick 与 SmbDataSource: open
+    在真机一条都取不到（Log.i 的「片源=」正常输出）。因此片尾
+    hitEnd / stalled 的数值细节在真机不可得，功能结论由截图 + Log.i
+    片源切换支撑，不把 MuMu 的诊断数值搬到真机。
+    仍未验证：loop 兜底分支、P4 压测（20 并发 / 长按 800ms / 休眠唤醒 /
+    HDMI ARC）、本地 U 盘目录浏览、arm64 包实机（v7a 即本包）。
+================================================================

@@ -1,0 +1,33 @@
+package com.chunting.purecourse.data
+
+/**
+ * 自用包（flavor = `local`）的预置数据模板。
+ *
+ * 用法：把本文件复制成同目录下的 `BuiltinPresets.kt`，再把下面的示例值换成你自己的
+ * 主机 / 共享名 / 账号 —— 复制后的 `.kt` 已被 `.gitignore` 忽略，不会进仓库。
+ *
+ * 为什么单独分 flavor：
+ * 这些值只参与 `local` 变体编译；对外发布的 `clean` 变体用的是 `src/clean` 下的同名文件，
+ * 里面全是空值，所以发布包里既没有预置数据源，也无法从 dex 里反编译出你的内网信息。
+ *
+ * 不填也能跑：`clean` flavor 首启为空，手动在「添加数据源」页填一次即可。
+ */
+object BuiltinPresets {
+
+    /** 主机：SMB 填 IP 或主机名，WebDAV 填域名 */
+    const val HOST = "192.168.1.10"
+
+    /** 共享名（整机模式下留空表示"整个主机"） */
+    const val SHARE = "courses"
+
+    const val USER = "guest"
+    const val PASS = "guest"
+
+    /** 首启要落到书架的上级目录，可留空 */
+    const val ROOT = ""
+
+    /** 「添加数据源」页里的快捷位置：点一下就把整条配置填进表单 */
+    val shortcuts: List<RealCatalog.Shortcut> = listOf(
+        RealCatalog.Shortcut("示例 · 课程根目录", HOST, SHARE, ROOT, USER, PASS),
+    )
+}

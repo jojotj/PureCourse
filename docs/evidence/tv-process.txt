@@ -1,0 +1,4 @@
+20905
+           TOTAL PSS:    88929            TOTAL RSS:   199140       TOTAL SWAP PSS:      179
+MemTotal:        2868504 kB
+MemAvailable:     843896 kB

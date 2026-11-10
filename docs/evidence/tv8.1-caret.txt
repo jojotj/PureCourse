@@ -1,0 +1,57 @@
+tv8.1 · 输入框光标与编辑态返回键 验收记录
+==========================================
+
+问题（tv7/tv8 用户实测）
+-----------------------
+1. 电视输入法只有「退格删左边」，没有正向删除。光标只能停在末尾 → 整行只能重输。
+2. 按遥控器左右键，光标不动（键盘弹出时不动，按返回收起键盘后也不动）。
+3. 用户要求：键盘弹出时用键盘自己的左右键移光标；按返回收起键盘后，用遥控器左右键移光标。
+
+实现（tv8.1）
+-------------
+* AppState.editCaret 统管光标位置；moveCaret(±1) / syncCaret(pos) / setCaretToEnd()
+* AddSourcePage.Field 改用 TextFieldValue：
+  - LaunchedEffect(editCaret) → 把 editCaret 渲染成 selection
+  - LaunchedEffect(tv.selection) → 反向回报（输入法 setSelection 不触发 onValueChange，不回传就会脱节）
+* MainActivity.dispatchKeyEvent 在编辑态接管 DPAD_LEFT/RIGHT → moveCaret(±1)
+* 编辑态 BACK 分两段（editBackArmed）：
+  - 第一次：hideImeNow() 只收键盘，编辑态保留（可继续用遥控器移光标 / 退格删字）
+  - 第二次：endEdit() 退出编辑，焦点回字段卡片
+
+被否掉的做法（有实测证据）
+--------------------------
+曾想按「输入法是否弹出」分流左右键归属，实测该信号在本工程拿不到：
+  adb shell dumpsys input_method → mInputShown=true / mImeWindowVis=3
+  但本 App 的 decorView 收到的是：
+    PureCourseIME: insets imeBottom=0 -> false
+    PureCourseIME: frame hidden=0/1440 -> false
+原因：Activity 为 adjustPan + 沉浸全屏（SYSTEM_UI_FLAG_FULLSCREEN|HIDE_NAVIGATION|IMMERSIVE_STICKY），
+框架不给这类窗口派发 IME inset；Type.ime() 与「可见区域高度差」两路都恒为 0。
+依赖观测不到的状态必然出错 → 改为不依赖它的确定性规则。
+键盘自带的左右箭头走 InputConnection.setSelection，不经 dispatchKeyEvent，
+所以我们接管左右键不会和键盘打架。
+
+实测（MuMu / Android 15 / x86_64，逐条截图见同目录）
+--------------------------------------------------
+端口初值 445，进入编辑后：
+1) DPAD_LEFT ×1 + 退格 → 445 → 45          v3-a-left-del.png
+   日志：onValueChange key=port text='45' old='445' sel=1
+2) DPAD_RIGHT ×2 + 退格 → 45 → 4           v3-b-right-del.png
+   日志：onValueChange key=port text='4' old='45' sel=1
+3) BACK ×1 → 仍为编辑态，值仍是 4（键盘被收起，编辑态保留）  v3-c-back1.png
+   日志：edit key=4 armed=false → armed=true
+4) BACK ×1 → 退出编辑，焦点回「端口」行，值 4 保留        v3-d-back2.png
+   日志：endEdit k=port text='4'
+5) 正式包（去掉诊断日志后）复测：445 → LEFT+退格 → 45      tv81-left-del.png
+
+包与签名
+--------
+dist/课程库-1.0-TV-tv8.1(装这个).apk
+  versionCode=9  versionName=1.0.0-tv8.1  native-code=armeabi-v7a
+  MD5 9d8bb943a431626525a8a5577eb4ed06  大小 12506142 B
+  apksigner: CN=ChunTing CoursePlayer，SHA-256 ce5f17d1c2d5fea12d4d880bb4c8b555ee8ac8c0d0ea194f829edbdedb82b65e
+
+未验证
+------
+* 电视真机（TCL / 雷鸟 85R695C）上装 tv8.1 后，用系统输入法的**屏上左右箭头**移光标是否顺畅
+* 真机输入法是否会把第一次 BACK 自己吞掉（若吞掉，用户按第二次 BACK 才退出编辑；逻辑已兼容两种路径）

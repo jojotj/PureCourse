@@ -1,0 +1,48 @@
+# ---- Gradle / 构建产物 ----
+.gradle/
+.kotlin/
+build/
+app/build/
+captures/
+.cxx/
+.externalNativeBuild/
+*.hprof
+
+# ---- 本机配置（含 SDK 路径与签名口令）----
+local.properties
+
+# ---- IDE ----
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# ---- 签名：keystore 本体不入库，只留说明 ----
+# 发布包要能直接下载，所以 dist/ 里的 APK **不忽略**（见下方说明）
+keystore/*.jks
+keystore/*.keystore
+keystore/*.p12
+!keystore/README.md
+
+# ---- 注意 ----
+# dist/ 只保留当前发布版本的两个 APK：访客 clone 下来直接能装，不用配编译环境；
+# 历史版本的包留在本地不入库，旧版本走 GitHub Release 的附件。
+
+# ---- 只入库当前版本的包 ----
+dist/*.apk
+!dist/PureCourse-2.0.8-clean-arm64-v8a.apk
+!dist/PureCourse-2.0.8-clean-armeabi-v7a.apk
+
+# ---- 自用 flavor 源码：含真实内网主机 / 共享名 / 账号，不入库 ----
+# 想用 local flavor，把同目录的 BuiltinPresets.kt.example 复制成 BuiltinPresets.kt 再填自己的值
+app/src/local/**/*.kt
+
+# ---- docs 只是开发记录正文，过程截图（约 550 张 / 250 MB）不随仓库分发 ----
+docs/**/*.png
+docs/**/*.jpg
+docs/**/*.jpeg
+
+# ---- 构建校验日志 / 本地工具目录 ----
+build_verify*.log
+build_verify*.err
+.workbuddy/

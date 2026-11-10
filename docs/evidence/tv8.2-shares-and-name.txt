@@ -1,0 +1,64 @@
+tv8.2 · 数据源别名 + 空路径列共享（阶段性）
+==========================================
+
+一、数据源别名（已完成，MuMu 实测）
+----------------------------------
+* `SourceStore.Cfg` 新增 `name`（SharedPreferences key = name），save/load 均带
+* 添加表单新增「名称」行（`fld:name`，区域表 formfields 首位），留空则显示 IP
+* 保存 → 卡片名 = 名称；顶栏副标题 = `SMB · PC（192.168.1.10）/ 于斯课堂`
+* 实测（MuMu / Android 15）：
+  - 名称填 PC → 保存 → 数据源卡片显示「PC」，副标题 `192.168.1.10:445 · 于斯课堂/02 乐理课程`，
+    状态「已连接 13 项顶层内容」（y1/y3 截图）
+  - force-stop 重启后仍为 PC（持久化生效）
+
+二、WebDAV / FTP / NFS 现状（用户提问）
+--------------------------------------
+* 工程里**零行** WebDAV/HTTP 代码（无 PROPFIND、无 HttpURLConnection；依赖只有 smbj + Media3）
+* `Proto.DAV` 只是协议卡枚举，选完仍走 SMB 连接 → 端口 19798 + 路径 /dav 必然失败
+* 也没有 HTTP/HTTPS 概念，枚举里写的 443 只是占位
+* 结论：不是「连不上」，是「不存在」
+
+三、空路径列共享（未打通，如实记录）
+------------------------------------
+现象：别的播放器（VLC/Kodi）留空能列出共享，本工程不能。
+
+原因链：
+1. VLC 的 SMB 走 native 层 Samba libsmbclient，其中带完整 srvsvc RPC + NDR 编解码；
+2. 本工程用 smbj 0.13.0，**没有** `listShares()`（javap 核对字节码：Session 只有 connectShare），
+   也没有 RPC 层。要列共享只能手写 `NetrShareEnum` 的 DCE/RPC 报文。
+
+已打通的环节（宿主 Python 直连 192.168.1.10，几秒一轮，共 40+ 组组合）：
+* 连 IPC$、打开 srvsvc 命名管道 ✔
+* DCE/RPC bind（SRVSVC 4b324fc8-1670-01d3-1278-5a47bf6ee188 v3.0）→ bind_ack result=0 ✔
+* NetrShareEnum（opnum 15）→ 一律失败：
+  - `level=1` → RPC fault `0x6F7`（= RPC_X_BAD_STUB_DATA，NDR 解析失败）
+  - `level=0` → 能解析，但返回 `87`（ERROR_INVALID_PARAMETER）
+
+已排除的参数排列：InfoStruct 传/不传指针、ResumeHandle NULL/ref、TotalEntries 传/不传、
+ServerName NULL/`\\host`/inline 字符串多种编码、Buffer NULL/ref+max_count、level 0/1、
+PreferedMaximumLength 0xFFFFFFFF/0x10000/0x1000 —— 全部不通过。
+
+权威 IDL（Samba librpc/idl/srvsvc.idl，opnum 0x0f = MS 的 NetrShareEnum）：
+```
+WERROR srvsvc_NetShareEnumAll (
+    [in,unique] [string,charset(UTF16)] uint16 *server_unc,
+    [in,out,ref] srvsvc_NetShareInfoCtr *info_ctr,
+    [in] uint32 max_buffer,
+    [out,ref] uint32 *totalentries,
+    [in,out,unique] uint32 *resume_handle
+);
+typedef struct { uint32 level; [switch_is(level)] srvsvc_NetShareCtr ctr; } srvsvc_NetShareInfoCtr;
+typedef union { [case(0)] srvsvc_NetShareCtr0 *ctr0; [case(1)] srvsvc_NetShareCtr1 *ctr1; } srvsvc_NetShareCtr;
+typedef struct { uint32 count; [size_is(count)] srvsvc_NetShareInfo1 *array; } srvsvc_NetShareCtr1;
+```
+按此重排参数后仍然 0x6F7，说明还差一层（union 分支/延迟数据的排布或 opnum 语义）。
+下一步要么继续对齐，要么放弃手写 RPC。
+
+现在的降级行为（已上线，可用）：
+* 路径留空 → 后台试枚举；失败则显示「这台主机不允许列出共享（一句话原因）」+
+  「右侧是最近用过的共享 / 也可以直接手填共享名」
+* `SourceStore.shareHistory()` 记录最近 12 个共享名，作为候选（tags `share:i`）
+* 保存时空共享名会被拦下并提示先选共享
+
+包：dist/课程库-1.0-TV-tv8.2(装这个).apk
+  versionCode=10  versionName=1.0.0-tv8.2  armeabi-v7a  MD5 f802a7a9d7a64beb73ec336b3603e606

@@ -1,0 +1,21 @@
+* text=auto
+
+# Kotlin / Gradle：统一 LF，diff 更干净
+*.kt      text eol=lf
+*.kts     text eol=lf
+*.md      text eol=lf
+*.properties text eol=lf
+*.gradle  text eol=lf
+*.jar     binary
+*.bat     text eol=crlf
+
+# 二进制：不许做行尾转换、不做文本 diff
+*.png     binary
+*.jpg     binary
+*.webp    binary
+*.apk     binary
+*.jks     binary
+*.keystore binary
+
+# APK 在 GitHub 上按二进制统计，不计入语言占比
+dist/*.apk linguist-vendored
