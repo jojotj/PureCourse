@@ -9,7 +9,9 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.SeekParameters
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
@@ -46,9 +48,23 @@ class Media3Engine(private val ctx: Context) : PlaybackEngine {
         first = CompletableDeferred()
         // 关键：数据源按当前数据源协议路由 —— WebDAV 走 OkHttp（Basic + 自签证书），
         // SMB 走自写 SmbDataSource，file:// 仍由 DefaultDataSource 自己处理。
+        // 2.0.9 快移手感：默认两处都在拖慢 seek ——
+        // 1) SeekParameters 默认 EXACT：先跳到目标点**之前**的关键帧，再把关键帧到目标点之间
+        //    的帧全部解码丢弃。课程片 GOP 常 5~10 秒，一次就白解上百帧（TCL 真机 1~2 秒）；
+        // 2) DefaultLoadControl 默认 bufferForPlayback=2500ms：seek 后必须重新填满 2.5 秒
+        //    媒体才离开 BUFFERING，跳远时叠加成 3~4 秒。
+        // 改成「对齐最近关键帧 + 只等 0.5 秒数据」，这也是 VLC / PotPlayer 的快切策略。
+        // 续播定位仍走精确 seek（见 seekToMsExact），不吃这个折损。
         val p = ExoPlayer.Builder(ctx)
             .setMediaSourceFactory(
                 DefaultMediaSourceFactory(DefaultDataSource.Factory(ctx, SourceRoutingFactory(ctx)))
+            )
+            .setSeekParameters(SeekParameters.CLOSEST_SYNC)
+            .setLoadControl(
+                DefaultLoadControl.Builder()
+                    // min / max / 起播门槛 / 重缓冲后再起播门槛（毫秒）
+                    .setBufferDurationsMs(12_000, 24_000, 500, 1_200)
+                    .build()
             )
             .build()
         player = p
@@ -134,6 +150,8 @@ class Media3Engine(private val ctx: Context) : PlaybackEngine {
         val done = CompletableDeferred<Long>()
         seekDone = done
         seekStart = SystemClock.elapsedRealtime()
+        // 基准测试也按用户真实快移的语义走（对齐关键帧），否则测出来的耗时不代表手感
+        runCatching { p.setSeekParameters(SeekParameters.CLOSEST_SYNC) }
         p.seekTo(target)
         // 判据：位置真的走到目标之后 150ms（Media3 无 seek 完成回调，用位置+READY 状态判定）
         val res = withTimeoutOrNull(timeoutMs) {
@@ -176,7 +194,25 @@ class Media3Engine(private val ctx: Context) : PlaybackEngine {
     val isEnded: Boolean get() = player?.playbackState == Player.STATE_ENDED
 
     fun playPause(play: Boolean) { player?.playWhenReady = play }
-    fun seekToMs(ms: Long) { player?.seekTo(ms.coerceAtLeast(0)) }
+
+    /**
+     * 快移 / 进度条跳转：对齐最近关键帧，落点最多偏一个 GOP，换来「按下去就动」。
+     * 这是 VLC、PotPlayer 的默认 Seek 语义，画面上用户感知不到偏差。
+     */
+    fun seekToMs(ms: Long) = applySeek(ms, SeekParameters.CLOSEST_SYNC)
+
+    /**
+     * 续播定位：必须回到上次停留的那一秒，走精确 seek。
+     * 只在打开片源时调用一次，慢一点无妨，但要准。
+     */
+    fun seekToMsExact(ms: Long) = applySeek(ms, SeekParameters.EXACT)
+
+    private fun applySeek(ms: Long, params: SeekParameters) {
+        player?.apply {
+            runCatching { setSeekParameters(params) }
+            seekTo(ms.coerceAtLeast(0))
+        }
+    }
     /** 单曲循环交给内核，避免自己轮询把同一集反复 seek 到 0 */
     fun setLoop(loop: Boolean) {
         player?.repeatMode = if (loop) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF

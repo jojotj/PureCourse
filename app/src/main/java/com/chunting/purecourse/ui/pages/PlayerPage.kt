@@ -103,7 +103,8 @@ fun PlayerPage(state: AppState) {
     LaunchedEffect(uri) {
         val u = uri ?: return@LaunchedEffect
         engine.open(u)
-        if (state.curSec > 0) engine.seekToMs(state.curSec * 1000L)
+        // 续播定位用精确 seek：这里必须回到上次停下的那一秒，慢一点无妨
+        if (state.curSec > 0) engine.seekToMsExact(state.curSec * 1000L)
         engine.playPause(state.playing)
     }
     LaunchedEffect(tv.value) { tv.value?.let { engine.attachTextureView(it) } }

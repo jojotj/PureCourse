@@ -1234,6 +1234,23 @@ class AppState {
      */
     private var seekAccumMs = -1L
 
+    /**
+     * 连按快移的合并任务（2.0.9）。
+     * ExoPlayer 每次 seek 都要「丢掉旧缓冲 → 关数据源 → 重开 SMB 句柄 → 重新缓冲」，
+     * 连按 5 下就等于把这条链路跑 5 遍，最后还是要等最后一次落定 —— 用户感受就是
+     * 「按得越快等得越久」。所以连按期间只累积目标位置，停手 260ms 后提交一次。
+     * 单按不属于连按，立刻提交，保证「按一下就跳」的手感。
+     */
+    private var seekCommitRun: Runnable? = null
+
+    /** 上次真实提交 seek 的时刻，用来区分单按与连按 */
+    private var lastSeekAt = 0L
+
+    private fun cancelPendingSeek() {
+        seekCommitRun?.let { ui.removeCallbacks(it) }
+        seekCommitRun = null
+    }
+
     /** 播放器驱动的进度回写（每 250ms 一次，不写盘；写盘在暂停/退出/seek 时做） */
     fun tickFromPlayer(sec: Int) {
         // 播放器位置已经追上目标 → 累加基准作废，下一轮按键从真实位置重新起算
@@ -1294,6 +1311,7 @@ class AppState {
     fun loadProgress() {
         ensureResumeLoaded()
         seekAccumMs = -1L                 // 换集后旧目标不能带到新视频上
+        cancelPendingSeek()               // 换集时把还没提交的连按目标一并作废
         // 「记忆播放进度」关掉时必须从 0 开始，不能偷偷读回上次的进度
         curSec = if (memory) resumeMap[playKey(if (playCourse >= 0) playCourse else sel)] ?: 0 else 0
     }
@@ -1386,6 +1404,8 @@ class AppState {
 
     fun setPosition(sec: Int) {
         seekAccumMs = -1L                 // 绝对定位（进度条点击）作废累加基准
+        cancelPendingSeek()               // 绝对定位优先，别让迟到的连按目标把位置拖回去
+        lastSeekAt = android.os.SystemClock.elapsedRealtime()
         curSec = if (totalSec > 0) sec.coerceIn(0, totalSec) else sec.coerceAtLeast(0)
         seekRequest = curSec * 1000L
         saveProgress()
@@ -1425,8 +1445,25 @@ class AppState {
         seekAccumMs = target
         val sec = (target / 1000).toInt()
         curSec = if (totalSec > 0) sec.coerceIn(0, totalSec) else sec
-        seekRequest = target
-        saveProgress()
+        // OSD 立刻显示目标秒数（用户要看到自己跳到了哪），但真实 seek 连按期间只提交最后一条
+        val now = android.os.SystemClock.elapsedRealtime()
+        seekCommitRun?.let { ui.removeCallbacks(it); seekCommitRun = null }
+        if (now - lastSeekAt >= 500L) {
+            // 单按：立即跳，保持「按下去就走」的手感
+            lastSeekAt = now
+            seekRequest = target
+            saveProgress()
+        } else {
+            // 连按中：等停手再一次性 seek，避免每一下都重开 SMB 句柄 + 重新缓冲
+            val r = Runnable {
+                seekCommitRun = null
+                lastSeekAt = android.os.SystemClock.elapsedRealtime()
+                seekRequest = target
+                saveProgress()
+            }
+            seekCommitRun = r
+            ui.postDelayed(r, 260L)
+        }
     }
 
     fun seekPercent(p: Float) {
