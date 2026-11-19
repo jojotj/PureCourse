@@ -1,5 +1,6 @@
 package com.chunting.purecourse.ui.pages
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -19,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -49,13 +51,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.chunting.purecourse.core.C
 import com.chunting.purecourse.core.tvFocus
 import com.chunting.purecourse.data.Proto
 import com.chunting.purecourse.data.RealCatalog
+import com.chunting.purecourse.net.PhoneFormServer
+import com.chunting.purecourse.qr.QrCode
 import com.chunting.purecourse.state.AppState
 import com.chunting.purecourse.state.Step
 import com.chunting.purecourse.state.endEdit
@@ -189,6 +195,22 @@ private fun SegChip(text: String, on: Boolean, rowFocused: Boolean) {
 
 @Composable
 private fun FormStep(state: AppState) {
+    // 手机扫码填写：只在表单页停留期间监听局域网；
+    // 手机每次 GET 都由 state.phoneForm() 现取当前表单值 → 扫码即回读已填数据。
+    val phoneMode = if (state.addProto == Proto.DAV) "dav" else "smb"
+    DisposableEffect(phoneMode) {
+        state.phoneInPort = PhoneFormServer.start(
+            preferred = 8901,
+            provider = { state.phoneForm() },
+            onSubmit = { values -> state.applyPhoneForm(values) },
+        )
+        state.phoneInMsg = ""
+        onDispose {
+            PhoneFormServer.stop()
+            state.phoneInPort = 0
+        }
+    }
+
     Row(Modifier.fillMaxWidth().widthIn(max = 1600.dp), horizontalArrangement = Arrangement.spacedBy(26.dp)) {
         // ---------- 表单 ----------
         Column(Modifier.weight(1f)) {
@@ -331,7 +353,8 @@ private fun FormStep(state: AppState) {
             }
         }
 
-        // ---------- 右侧：SMB 显示局域网发现；WebDAV 显示填写说明 ----------
+        // ---------- 右侧：顶部手机扫码填写，下面才是说明 / 自动发现 ----------
+        // 说明框整体下移，而不是被二维码替换掉：局域网发现与填写说明仍然有用。
         Column(
             Modifier
                 .width(430.dp)
@@ -340,6 +363,9 @@ private fun FormStep(state: AppState) {
                 .border(1.dp, C.Line, RoundedCornerShape(14.dp))
                 .padding(18.dp)
         ) {
+            QrPanel(state, phoneMode)
+            Spacer(Modifier.height(18.dp))
+
             if (state.addProto == Proto.DAV) {
                 // WebDAV 是「照着地址填」的，不存在广播发现；
                 // 这里把最容易填错的几项直接写出来，比留一大片 SMB 设备列表有用。
@@ -370,7 +396,10 @@ private fun FormStep(state: AppState) {
                     EndpointRow(state, "recent:$i", e.proto, e.host, "${e.port} · ${e.path} · ${e.user}")
                 }
                 Spacer(Modifier.height(14.dp))
-                Txt("密码可直接用电视系统输入法的扫码输入，无需自建扫码面板", 14f, C.Dim2, maxLines = 2, lineHeight = 21f)
+                Txt(
+                    "扫上方二维码可在手机上一次性填完；密码不回显，留空即保持电视原值",
+                    14f, C.Dim2, maxLines = 3, lineHeight = 21f,
+                )
             }
         }
     }
@@ -642,6 +671,86 @@ private fun TestStep(state: AppState) {
                 } else {
                     FBtn(state.focusTag == "fbtn:0", "返回修改", primary = true)
                     FBtn(state.focusTag == "fbtn:1", "仍然保存", primary = false)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 手机扫码填写面板。
+ *
+ * SMB / WebDAV 各自一张二维码（URL 带 ?m=smb|dav），手机打开的是**电视实时渲染**的整张表单：
+ * 第一次是空白表，填完上传后电视端一次性填入；再扫一次看到的就是已填好的数据，改一项再传即可。
+ */
+@Composable
+private fun QrPanel(state: AppState, mode: String) {
+    val port = state.phoneInPort
+    val ip = remember(port) { if (port > 0) PhoneFormServer.ip() else "" }
+    val url = if (port > 0 && ip.isNotEmpty()) "http://$ip:$port/?m=$mode" else ""
+
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(C.SoftCard)
+            .border(1.dp, C.Line2, RoundedCornerShape(12.dp))
+            .padding(14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Txt("手机扫码填写", 17f, C.AccText, 800)
+        Spacer(Modifier.height(4.dp))
+        Txt(
+            if (mode == "dav") "WebDAV 表单 · 手机上填完点上传" else "SMB 表单 · 手机上填完点上传",
+            13f, C.Dim2, maxLines = 2,
+        )
+        Spacer(Modifier.height(12.dp))
+        when {
+            url.isEmpty() -> Txt("服务未启动（8901-8912 端口都被占用）", 13f, C.DangerText, maxLines = 2)
+            else -> {
+                QrImage(url, 240.dp)
+                Spacer(Modifier.height(10.dp))
+                Txt(url, 13f, C.Dim2, maxLines = 2)
+                Spacer(Modifier.height(4.dp))
+                Txt("手机需与电视连同一个 Wi-Fi", 12f, C.Dim3, maxLines = 2)
+                if (state.phoneInMsg.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Txt(state.phoneInMsg, 13f, C.Seg, maxLines = 2)
+                }
+            }
+        }
+    }
+}
+
+/** 纯自绘二维码：白底 + 黑色方块，不依赖任何图片库 */
+@Composable
+private fun QrImage(text: String, box: Dp) {
+    val matrix = remember(text) { runCatching { QrCode.encode(text) }.getOrNull() }
+    Box(
+        Modifier
+            .size(box)
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color.White)
+            .padding(10.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (matrix == null) {
+            Txt("二维码生成失败", 12f, C.DangerText)
+        } else {
+            Canvas(Modifier.fillMaxSize()) {
+                val n = matrix.size
+                val cell = size.width / n
+                for (r in 0 until n) {
+                    for (c in 0 until n) {
+                        if (matrix.dark[r][c]) {
+                            drawRect(
+                                color = Color.Black,
+                                topLeft = Offset(c * cell, r * cell),
+                                // 多画 0.6px 消除相邻格之间的发丝缝，扫不出来多半是这个原因
+                                size = Size(cell + 0.6f, cell + 0.6f),
+                            )
+                        }
+                    }
                 }
             }
         }

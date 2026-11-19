@@ -1,4 +1,4 @@
-<div align="center">
+﻿<div align="center">
 
 # 纯看课 · PureCourse
 
@@ -51,6 +51,7 @@
 | 能力 | 说明 |
 |---|---|
 | **三种数据源并存** | SMB / CIFS（SMB2/3，支持整机模式）、WebDAV（OpenList / Alist / Nextcloud / 群晖等，可选自签证书直通）、本地存储（内置存储 / U 盘 / SD 卡，插拔自动探测） |
+| **手机扫码填表** | 添加数据源页右侧出二维码，手机连同一 Wi-Fi 扫一扫即可把整张表单一次填完（SMB / WebDAV 各一码、内容不同），免去遥控器敲中文路径与账号；手机页实时回读已填值，密码永不回显 |
 | **点哪层读哪层** | 2.0 数据层重写：启动只读根目录一层（1 次请求）、书架上每门课只读它自己那一层（每门课 1 次）、点开一本书先用手里的集数立刻显示再后台刷新。冷启动不再等整棵树扫完 |
 | **浏览与播放分池** | 浏览请求走独立连接池（并发 6、不重试），播放走原通道；翻目录不会把正在播的视频卡住 |
 | **视频画幅 6 档** | 原始比例 / 铺满屏幕 / 16:9 / 4:3 / 21:9 / 拉伸全屏。按 **DAR（含 SAR）** 出画，`1440×1080 + SAR 4:3` 这类老课件不再被横向压窄 |
@@ -66,8 +67,8 @@
 
 | 文件 | 适用 |
 |---|---|
-| `PureCourse-2.0.9-clean-armeabi-v7a.apk` | **大多数电视 / 盒子**（32 位，优先选这个） |
-| `PureCourse-2.0.9-clean-arm64-v8a.apk` | 64 位机型（新款电视、部分盒子） |
+| `PureCourse-2.0.11-clean-armeabi-v7a.apk` | **大多数电视 / 盒子**（32 位，优先选这个） |
+| `PureCourse-2.0.11-clean-arm64-v8a.apk` | 64 位机型（新款电视、部分盒子） |
 
 装法两条路：
 
@@ -77,7 +78,7 @@
 #   （v2 验签 CHUNKED_SHA256 digest mismatch），与包本身无关
 
 # 路线 B：adb（开发用，需要电视已开 ADB 调试）
-adb install -r dist/PureCourse-2.0.9-clean-armeabi-v7a.apk
+adb install -r dist/PureCourse-2.0.11-clean-armeabi-v7a.apk
 adb shell am start -n com.chunting.purecourse/com.chunting.purecourse.MainActivity
 ```
 

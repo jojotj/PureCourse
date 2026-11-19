@@ -1222,7 +1222,22 @@ class AppState {
         private set
 
     fun setDuration(sec: Int) {
-        if (sec > 0) totalSec = sec
+        if (sec <= 0) return
+        // 首帧拿到真实时长时做一次续播点体检（换集时 totalSec 已被清 0，故首帧即换集后第一帧）
+        val firstFill = totalSec <= 0
+        totalSec = sec
+        if (!firstFill) return
+        // 2.0.10 修：续播点落在片尾（<= 末尾 1 秒）→ 当作从头看。
+        // 否则进片就把画面 seek 到结尾，内核立刻 ENDED，又走一次「自动下一节」，表现为
+        // 「回看这节课一秒都放不出来就被跳走」。旧版本已存下的末尾值靠这里清掉。
+        if (curSec < sec - 1) return
+        curSec = 0
+        seekAccumMs = -1L
+        val cid = if (playCourse >= 0) playCourse else sel
+        val k = playKey(cid)
+        resumeMap = resumeMap + (k to 0)
+        runCatching { com.chunting.purecourse.data.ResumeStore.put(App.instance, k, 0) }
+        seekRequest = 0L                  // 若刚才已按旧值 seek 到结尾，这里把画面拉回 00:00
     }
 
     /**
@@ -1357,7 +1372,11 @@ class AppState {
     fun saveProgress() {
         val cid = if (playCourse >= 0) playCourse else sel
         val k = playKey(cid)
-        val v = curSec
+        // 2.0.10 修：播到片尾（末尾 1 秒内）的位置不落盘，一律记 0。
+        // 旧逻辑把片尾秒数原样存下：一集播完自动进下一集后，再回看这一集，续播点就是结尾，
+        // 进片即 ENDED → 又被「自动下一节」带走，用户看到的就是「回看一秒都放不出来就跳走」。
+        // 语义上「看完」= 下次从头看，故归零。
+        val v = if (totalSec > 0 && curSec >= totalSec - 1) 0 else curSec
         touchCourse(cid)
         if (resumeMap[k] == v) return
         resumeMap = resumeMap + (k to v)
@@ -1766,6 +1785,158 @@ class AppState {
     var addShares by mutableStateOf<List<com.chunting.purecourse.data.SmbShares.Share>>(emptyList())
     /** 正在枚举共享（右侧面板显示"正在查询…"） */
     var addSelectBusy by mutableStateOf(false)
+
+    // ================= 手机扫码填写（局域网回传） =================
+    /** 手机填写服务实际端口（0 = 未启动） */
+    var phoneInPort by mutableStateOf(0)
+    /** 最近一次从手机收到的结果（空 = 尚未收到） */
+    var phoneInMsg by mutableStateOf("")
+
+    /**
+     * 组装手机页要渲染的表单。
+     * 每次手机请求都会调一次，字段值直接取自电视端当前表单，
+     * 所以「第二次扫码看到的是已填好的数据」是天然成立的，不需要额外同步。
+     */
+    fun phoneForm(): com.chunting.purecourse.net.PhoneForm {
+        val isDav = addProto == Proto.DAV
+        val fields = ArrayList<com.chunting.purecourse.net.PhoneField>()
+        fields += com.chunting.purecourse.net.PhoneField(
+            "name", "名称（可选）", addName,
+            if (isDav) "如 家里NAS；留空则显示地址" else "如 PC；留空则显示 IP",
+        )
+        if (isDav) {
+            fields += com.chunting.purecourse.net.PhoneField(
+                "scheme", "协议", if (addDavHttps) "https" else "http",
+                "内网多数是 HTTP；公网 / 群晖用 HTTPS",
+                com.chunting.purecourse.net.PhoneField.Kind.SELECT,
+                listOf("http" to "HTTP", "https" to "HTTPS"),
+            )
+            fields += com.chunting.purecourse.net.PhoneField(
+                "host", "服务器地址", addHost, "IP 或域名，如 192.168.1.10",
+            )
+            fields += com.chunting.purecourse.net.PhoneField(
+                "port", "端口", addPort,
+                if (addDavHttps) "留空 = 443" else "留空 = 80",
+                com.chunting.purecourse.net.PhoneField.Kind.NUMBER,
+            )
+            fields += com.chunting.purecourse.net.PhoneField(
+                "path", "路径", addPath, "如 /dav/115/我的课程/分类后；留空 = 根",
+            )
+        } else {
+            fields += com.chunting.purecourse.net.PhoneField("host", "主机 / IP", addHost, "如 192.168.1.10")
+            fields += com.chunting.purecourse.net.PhoneField(
+                "port", "端口", addPort, "留空 = 445",
+                com.chunting.purecourse.net.PhoneField.Kind.NUMBER,
+            )
+            fields += com.chunting.purecourse.net.PhoneField(
+                "path", "共享 / 路径", addPath, "留空 = 整机模式（全部共享）",
+            )
+        }
+        fields += com.chunting.purecourse.net.PhoneField(
+            "user", "账号", addUser, if (isDav) "WebDAV 账号（可留空）" else "guest",
+        )
+        // 密码永不回显：value 恒为空，只告诉用户「电视上有没有存过、几位」
+        fields += com.chunting.purecourse.net.PhoneField(
+            "pwd", "密码", "",
+            if (addPwd.isNotEmpty()) "电视上已保存密码（${addPwd.length} 位）· 留空则不修改"
+            else "没有密码可留空",
+            com.chunting.purecourse.net.PhoneField.Kind.PWD,
+        )
+        fields += com.chunting.purecourse.net.PhoneField(
+            "remember", "记住用户名和密码", if (addRemember) "1" else "0", "",
+            com.chunting.purecourse.net.PhoneField.Kind.CHECK,
+        )
+        if (isDav) {
+            fields += com.chunting.purecourse.net.PhoneField(
+                "ignorecert", "忽略证书校验（自签 HTTPS）", if (addIgnoreCert) "1" else "0", "",
+                com.chunting.purecourse.net.PhoneField.Kind.CHECK,
+            )
+        }
+        return com.chunting.purecourse.net.PhoneForm(
+            mode = if (isDav) "dav" else "smb",
+            title = if (isDav) "WebDAV 数据源" else "SMB 数据源",
+            subtitle = "填好点「上传到电视」，电视端会自动填入",
+            fields = fields,
+            pwdSaved = addPwd.isNotEmpty(),
+            pwdLen = addPwd.length,
+        )
+    }
+
+    /** 手机提交的内容一次性写回表单（密码留空 = 保持电视原值） */
+    fun applyPhoneForm(v: Map<String, String>) {
+        val isDav = addProto == Proto.DAV
+        var n = 0
+
+        v["name"]?.let { if (it.trim() != addName) { addName = it.trim(); n++ } }
+
+        // 协议开关：地址栏里写了 http(s):// 前缀就以它为准（兼容直接粘整条 URL）
+        v["scheme"]?.let {
+            val https = it.equals("https", true)
+            if (https != addDavHttps) { addDavHttps = https; n++ }
+        }
+        v["host"]?.let { raw ->
+            var h = raw.trim()
+            if (h.startsWith("https://", true)) { addDavHttps = true; h = h.substring(8) }
+            else if (h.startsWith("http://", true)) { addDavHttps = false; h = h.substring(7) }
+            h = h.trimEnd('/')
+            // 地址栏里连端口 / 路径一起粘了：拆到对应字段，别当成主机名存
+            if (addPath.isBlank() && h.contains('/')) {
+                val tail = h.substringAfter('/').trim('/')
+                h = h.substringBefore('/')
+                if (tail.isNotEmpty()) { addPath = if (isDav) "/$tail" else tail; n++ }
+            }
+            if (h.count { it == ':' } == 1 && addPort.isBlank()) {
+                val p = h.substringAfter(':')
+                if (p.isNotEmpty() && p.all { it.isDigit() }) {
+                    addPort = p
+                    h = h.substringBefore(':')
+                    n++
+                }
+            }
+            if (h != addHost) { addHost = h; n++ }
+        }
+        v["port"]?.let {
+            val p = it.filter { c -> c.isDigit() }
+            if (p != addPort) { addPort = p; n++ }
+        }
+        v["path"]?.let {
+            var p = it.trim()
+            if (!isDav) p = p.trim('/', '\\').replace('\\', '/')
+            else if (p.isNotEmpty()) p = "/" + p.trim('/')
+            if (p != addPath) { addPath = p; n++ }
+        }
+        v["user"]?.let { if (it.trim() != addUser) { addUser = it.trim(); n++ } }
+
+        // 复选框未勾选时浏览器不提交，所以「键存在 = 勾选」
+        if (v.containsKey("remember")) {
+            val on = v["remember"] == "1"
+            if (on != addRemember) { addRemember = on; n++ }
+        }
+        if (isDav && v.containsKey("ignorecert")) {
+            val on = v["ignorecert"] == "1"
+            if (on != addIgnoreCert) { addIgnoreCert = on; n++ }
+        }
+
+        // 密码：非空 = 覆盖并记住；空 = 不动；显式勾「清除」才清空
+        val pwd = v["pwd"].orEmpty()
+        if (pwd.isNotEmpty()) {
+            addPwd = pwd
+            addRemember = true
+            n++
+        } else if (v["clearpwd"] == "1" && addPwd.isNotEmpty()) {
+            addPwd = ""
+            n++
+        }
+
+        // 手机数据已覆盖表单，电视上残留的编辑态/测试结果都作废
+        addEditing = null
+        addShares = emptyList()
+        addTestState = "idle"
+        addTestMsg = ""
+        addTestErr = ""
+        phoneInMsg = if (n > 0) "手机已填入 · $n 项" else "手机已上传 · 内容无变化"
+        toast(phoneInMsg)
+    }
 
     /**
      * 编辑态光标位置（字符下标）。
