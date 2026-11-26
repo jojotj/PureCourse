@@ -67,8 +67,8 @@
 
 | 文件 | 适用 |
 |---|---|
-| `PureCourse-2.0.11-clean-armeabi-v7a.apk` | **大多数电视 / 盒子**（32 位，优先选这个） |
-| `PureCourse-2.0.11-clean-arm64-v8a.apk` | 64 位机型（新款电视、部分盒子） |
+| `PureCourse-2.0.12-clean-armeabi-v7a.apk` | **大多数电视 / 盒子**（32 位，优先选这个） |
+| `PureCourse-2.0.12-clean-arm64-v8a.apk` | 64 位机型（新款电视、部分盒子） |
 
 装法两条路：
 
@@ -78,7 +78,7 @@
 #   （v2 验签 CHUNKED_SHA256 digest mismatch），与包本身无关
 
 # 路线 B：adb（开发用，需要电视已开 ADB 调试）
-adb install -r dist/PureCourse-2.0.11-clean-armeabi-v7a.apk
+adb install -r dist/PureCourse-2.0.12-clean-armeabi-v7a.apk
 adb shell am start -n com.chunting.purecourse/com.chunting.purecourse.MainActivity
 ```
 

@@ -6,8 +6,8 @@ plugins {
 }
 
 // ★ 版本号单一真源：发版时只改这两行，defaultConfig 与 dist 归档命名自动跟着变。
-val appVersionCode = 39
-val appVersionName = "2.0.11"
+val appVersionCode = 40
+val appVersionName = "2.0.12"
 // dist 归档前缀，与 dist/ 里历史包保持一致（PureCourse-<versionName><-clean>-<abi>.apk）。
 val distApkPrefix = "PureCourse"
 

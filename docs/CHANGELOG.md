@@ -5,6 +5,34 @@
 
 ---
 
+## 2.0.12 - 2026-11-26
+
+### 修复：SMB 进片起播慢（每次打开新视频要等几秒）
+- 现象：局域网视频**刚进片**要等几秒才出画面，但播放中快进快退不卡；同一个文件 VLC 几乎秒开。
+- 根因（不在播放内核）：`SmbDataSource.read()` 按 ExoPlayer 请求的 16~64KB 逐次发 SMB READ，
+  片头解析 moov + 填 500ms 起播缓冲要 20~50 次局域网往返，单次往返 10~30ms 就是那几秒；
+  播放中不卡是因为 LoadControl 已预缓冲 12s，读请求被摊薄。
+  播放内核侧的 `SeekParameters.CLOSEST_SYNC` 与 `setBufferDurationsMs(12000, 24000, 500, 1200)` 早前已调好，本身无问题。
+- 方案（只改 `player/SmbDataSource.kt`，不动播放器内核）：
+  - **读放大预读**：缓存未命中时一次 READ 取 1MB（复用数组，不产生 GC 抖动），后续小块读全部内存切片；
+    起播往返次数从数十次降到 1~2 次。seek 后缓存自动作废重取。
+  - **文件大小缓存**：按「共享名 + 路径」记住 size，不再每次 open 都发一条 `FileAllInformation` 查询。
+  - **读失败自愈**：见下条。
+- 内存代价：每个数据源实例一份 1MB 复用数组（播放时只有 1 个实例）。
+- 量化日志：`adb logcat -s SmbDataSource` 可见 `openFile xx ms` 与 `首块预读 xx ms / n bytes`。
+
+### 修复：偶发「打不开，切到别的集再切回来就好」
+- 根因：SMB 被对端悄悄断开时 `isConnected`（看底层 transport）仍可能为 true，旧实现 `read()` 直接抛
+  IOException，Media3 报错定格，用户只能换集重建流水线才恢复。
+- 方案：`readAt()` 捕获失败后就地 `heal()` —— 关旧句柄 → 强重连 → 切回本片所在共享 → 重开句柄 →
+  从同一偏移重读一次；失败仍按原样抛出，不掩盖真实错误。
+
+### dist 归档
+- `PureCourse-2.0.12-clean-{arm64-v8a,armeabi-v7a}.apk`。
+- `versionCode 40`，签名与前版一致，可覆盖安装保数据。
+
+---
+
 ## 2.0.11 - 2026-11-19
 
 ### 新增：添加数据源页支持「手机扫码填表」
